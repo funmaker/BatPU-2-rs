@@ -1,3 +1,5 @@
+#![feature(integer_sign_cast)]
+
 mod vm;
 mod char;
 

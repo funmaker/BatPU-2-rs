@@ -34,48 +34,47 @@ impl IO for EmbeddedIO {
 	}
 	
 	fn draw_pixel(&mut self) {
-		self.screen.buffer[self.screen.y as usize] |= 1 << self.screen.x;
+		self.screen.set_buffer_pixel(self.screen.x, self.screen.y, true);
 	}
 	
 	fn clear_pixel(&mut self) {
-		self.screen.buffer[self.screen.y as usize] &= !(1 << self.screen.x);
+		self.screen.set_buffer_pixel(self.screen.x, self.screen.y, false);
 	}
 	
 	fn load_pixel(&mut self) -> u8 {
-		if self.screen.buffer[self.screen.y as usize] & (1 << self.screen.x) == 0 {
-			0
-		} else {
+		if self.screen.get_buffer_pixel(self.screen.x, self.screen.y) {
 			1
+		} else {
+			0
 		}
 	}
 	
 	fn show_screen_buffer(&mut self) {
-		self.screen.output = self.screen.buffer;
+		self.screen.show_buffer();
 	}
 	
 	fn clear_screen_buffer(&mut self) {
-		self.screen.buffer = [0; 32];
+		self.screen.clear_buffer();
 	}
 	
 	fn write_char(&mut self, value: u8) {
-		self.char_display.buffer.rotate_right(1);
-		self.char_display.buffer[0] = Char::new(value);
+		self.char_display.write(Char::new(value));
 	}
 	
 	fn show_char_buffer(&mut self) {
-		self.char_display.output = self.char_display.buffer;
+		self.char_display.show_buffer();
 	}
 	
 	fn clear_char_buffer(&mut self) {
-		self.char_display.buffer = [Char::SPACE; 10];
+		self.char_display.clear_buffer();
 	}
 	
 	fn show_number(&mut self, value: u8) {
-		self.number_display.value = Some(value);
+		self.number_display.set(value);
 	}
 	
 	fn clear_number(&mut self) {
-		self.number_display.value = None;
+		self.number_display.clear();
 	}
 	
 	fn set_number_signed(&mut self) {
@@ -103,10 +102,79 @@ pub struct Screen {
 	pub output: [u32; 32],
 }
 
+impl Screen {
+	pub fn get_pixel(&self, mut x: u8, mut y: u8) -> bool {
+		x &= 0b11111;
+		y &= 0b11111;
+		
+		self.output[y as usize] & (1 << x) != 0
+	}
+	
+	pub fn set_pixel(&mut self, mut x: u8, mut y: u8, val: bool) {
+		x &= 0b11111;
+		y &= 0b11111;
+		
+		if val {
+			self.output[y as usize] |= 1 << x
+		} else {
+			self.output[y as usize] &= !(1 << x);
+		}
+	}
+	
+	pub fn get_buffer_pixel(&self, mut x: u8, mut y: u8) -> bool {
+		x &= 0b11111;
+		y &= 0b11111;
+		
+		self.buffer[y as usize] & (1 << x) != 0
+	}
+	
+	pub fn set_buffer_pixel(&mut self, mut x: u8, mut y: u8, val: bool) {
+		x &= 0b11111;
+		y &= 0b11111;
+		
+		if val {
+			self.buffer[y as usize] |= 1 << x
+		} else {
+			self.buffer[y as usize] &= !(1 << x);
+		}
+	}
+	
+	pub fn show_buffer(&mut self) {
+		self.output = self.buffer;
+	}
+	
+	pub fn clear_buffer(&mut self) {
+		self.buffer = [0; 32];
+	}
+	
+	pub fn clear_output(&mut self) {
+		self.output = [0; 32];
+	}
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct CharDisplay {
 	pub buffer: [Char; 10],
 	pub output: [Char; 10],
+}
+
+impl CharDisplay {
+	pub fn write(&mut self, char: Char) {
+		self.buffer.rotate_right(1);
+		self.buffer[0] = char;
+	}
+	
+	pub fn show_buffer(&mut self) {
+		self.output = self.buffer;
+	}
+	
+	pub fn clear_buffer(&mut self) {
+		self.buffer = [Char::SPACE; 10];
+	}
+	
+	pub fn clear_output(&mut self) {
+		self.output = [Char::SPACE; 10];
+	}
 }
 
 #[derive(Debug, Default, Clone)]
@@ -115,7 +183,51 @@ pub struct NumberDisplay {
 	pub signed: bool,
 }
 
+pub enum OptSign {
+	Unsigned(u8),
+	Signed(i8),
+}
+
+impl NumberDisplay {
+	pub fn set(&mut self, value: u8) {
+		self.value = Some(value);
+	}
+	
+	pub fn set_unsigned(&mut self, value: u8) {
+		self.set(value);
+		self.signed = false;
+	}
+	
+	pub fn set_signed(&mut self, value: i8) {
+		self.set(value.cast_unsigned());
+		self.signed = true;
+	}
+	
+	pub fn clear(&mut self) {
+		self.value = None;
+	}
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Controller {
 	pub state: u8,
+}
+
+impl Controller {
+	pub const B_LEFT: u8 = 0x01;
+	pub const B_DOWN: u8 = 0x02;
+	pub const B_RIGHT: u8 = 0x04;
+	pub const B_UP: u8 = 0x08;
+	pub const B_B: u8 = 0x10;
+	pub const B_A: u8 = 0x20;
+	pub const B_SELECT: u8 = 0x40;
+	pub const B_START: u8 = 0x80;
+	
+	pub fn get_button(&self, button: u8) -> bool {
+		self.state & button != 0
+	}
+	
+	pub fn set_button(&mut self, button: u8) {
+		self.state |= button;
+	}
 }

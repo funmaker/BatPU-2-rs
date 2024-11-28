@@ -1,2 +1,2 @@
-# BatPU-2-rs
+# BatPU2-rs
 BatPU-2 emulator
