@@ -2,6 +2,7 @@
 resolver = "2"
 
 members = [
-    "batpu2"
+    "batpu2",
+    "batpu2-cli"
 ]
 
