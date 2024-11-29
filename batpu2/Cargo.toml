@@ -8,4 +8,5 @@ default = ["embedded_io"]
 embedded_io = ["dep:rand"]
 
 [dependencies]
+num_enum = "0.7.3"
 rand = { version = "0.8.5", features = ["small_rng"], optional = true }
