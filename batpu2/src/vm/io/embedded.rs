@@ -1,3 +1,5 @@
+use std::any::type_name;
+use std::fmt::{Debug, Display, Formatter};
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 
@@ -152,7 +154,7 @@ impl Screen {
 	}
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct CharDisplay {
 	pub buffer: [Char; 10],
 	pub output: [Char; 10],
@@ -160,8 +162,8 @@ pub struct CharDisplay {
 
 impl CharDisplay {
 	pub fn write(&mut self, char: Char) {
-		self.buffer.rotate_right(1);
-		self.buffer[0] = char;
+		self.buffer.rotate_left(1);
+		self.buffer[self.buffer.len()-1] = char;
 	}
 	
 	pub fn show_buffer(&mut self) {
@@ -174,6 +176,26 @@ impl CharDisplay {
 	
 	pub fn clear_output(&mut self) {
 		self.output = [Char::SPACE; 10];
+	}
+}
+
+impl Display for CharDisplay {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		for chr in self.output.iter() {
+			std::fmt::Display::fmt(&chr, f)?;
+		}
+		Ok(())
+	}
+}
+
+impl Debug for CharDisplay {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let buffer_str: String = self.buffer.iter().map(ToString::to_string).collect();
+		let output_str: String = self.buffer.iter().map(ToString::to_string).collect();
+		f.debug_struct("CharDisplay")
+			.field("buffer", &buffer_str)
+			.field("output", &output_str)
+			.finish()
 	}
 }
 

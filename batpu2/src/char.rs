@@ -11,26 +11,26 @@ impl Char {
 		Self(value)
 	}
 	
-	pub fn as_char(&self) -> Option<char> {
+	pub fn to_char(self) -> Option<char> {
 		Char::TABLE.get(self.as_u8() as usize)
 		           .copied()
 	}
 	
-	pub fn as_u8(&self) -> u8 {
+	pub fn as_u8(self) -> u8 {
 		self.0
 	}
 	
-	pub fn is_valid(&self) -> bool {
+	pub fn is_valid(self) -> bool {
 		(self.as_u8() as usize) < Char::TABLE.len()
 	}
 }
 
 impl Display for Char {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		if let Some(c) = self.as_char() {
+		if let Some(c) = self.to_char() {
 			c.fmt(f)
 		} else {
-			writeln!(f, "<{}>", self.0)
+			write!(f, "<{}>", self.0)
 		}
 	}
 }
