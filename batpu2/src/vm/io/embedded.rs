@@ -1,11 +1,10 @@
-use std::any::type_name;
 use std::fmt::{Debug, Display, Formatter};
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 
 use crate::{IO, Char};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EmbeddedIO {
 	pub screen: Screen,
 	pub char_display: CharDisplay,
@@ -23,6 +22,21 @@ impl EmbeddedIO {
 			rng: SmallRng::from_entropy(),
 			controller: Controller::default(),
 		}
+	}
+}
+
+impl Debug for EmbeddedIO {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("EmbeddedIO")
+			.field("char_display", &self.char_display)
+			.field("number_display", &self.number_display)
+			.field("screen", &self.screen)
+			.field_with("controller", |f| f.write_str(&format!("{:?}", self.controller)))
+			.field_with("rng (next value)", |f| {
+				let next_value: u8 = self.rng.clone().gen();
+				f.write_str(&format!("{} / 0x{:2X}", next_value, next_value))
+			})
+			.finish()
 	}
 }
 
@@ -96,7 +110,7 @@ impl IO for EmbeddedIO {
 	}
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct Screen {
 	pub x: u8,
 	pub y: u8,
@@ -154,6 +168,16 @@ impl Screen {
 	}
 }
 
+impl Debug for Screen {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Screen")
+			.field_with("coords", |f| f.write_str(&format!("{:?}", vec![self.x, self.y])))
+			.field_with("buffer", |f| f.write_str(&format!("{:?}", self.buffer)))
+			.field_with("output", |f| f.write_str(&format!("{:?}", self.output)))
+			.finish()
+	}
+}
+
 #[derive(Default, Clone)]
 pub struct CharDisplay {
 	pub buffer: [Char; 10],
@@ -199,15 +223,10 @@ impl Debug for CharDisplay {
 	}
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct NumberDisplay {
 	pub value: Option<u8>,
 	pub signed: bool,
-}
-
-pub enum OptSign {
-	Unsigned(u8),
-	Signed(i8),
 }
 
 impl NumberDisplay {
@@ -230,7 +249,35 @@ impl NumberDisplay {
 	}
 }
 
-#[derive(Debug, Default, Clone)]
+impl Display for NumberDisplay {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match &self.value {
+			None => { Ok(()) }
+			Some(value) => {
+				if self.signed {
+					let signed = value.cast_signed();
+					write!(f, "{}", signed)
+				}else{
+					write!(f, "{}", value)
+				}
+			}
+		}
+	}
+}
+impl Debug for NumberDisplay {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match &self.value {
+			None => {
+				write!(f, "None ({})", if self.signed { "signed" } else { "unsigned" })
+			}
+			Some(value) => {
+				write!(f, "{} ({} 0x{:2X})", &self, if self.signed { "signed" } else { "unsigned" }, value)
+			}
+		}
+	}
+}
+
+#[derive(Default, Clone)]
 pub struct Controller {
 	pub state: u8,
 }
@@ -244,6 +291,7 @@ impl Controller {
 	pub const B_A: u8 = 0x20;
 	pub const B_SELECT: u8 = 0x40;
 	pub const B_START: u8 = 0x80;
+	pub const BUTTON_NAMES: [&'static str; 8] = [ "LEFT", "DOWN", "RIGHT", "UP", "B", "A", "SELECT", "START" ];
 	
 	pub fn get_button(&self, button: u8) -> bool {
 		self.state & button != 0
@@ -251,5 +299,19 @@ impl Controller {
 	
 	pub fn set_button(&mut self, button: u8) {
 		self.state |= button;
+	}
+}
+
+impl Debug for Controller {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "0x{:02X} ", self.state)?;
+		let mut set = f.debug_set();
+		for i in 0..Self::BUTTON_NAMES.len() {
+			if self.get_button(i as u8) {
+				set.entry_with(|f| f.write_str(Self::BUTTON_NAMES[i]));
+			}
+		}
+		set.finish()?;
+		Ok(())
 	}
 }

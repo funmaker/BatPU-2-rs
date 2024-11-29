@@ -1,4 +1,5 @@
 #![feature(integer_sign_cast)]
+#![feature(debug_closure_helpers)]
 
 mod vm;
 mod char;

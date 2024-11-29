@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::ops::Rem;
 use flags::Flags;
 use io::IO;
@@ -19,6 +20,22 @@ pub struct BatPU2<T, I> {
 	pub memory: [u8; 240],
 	pub code: T,
 	pub halted: bool,
+}
+
+impl<T, I> Debug for BatPU2<T, I>
+where T: AsRef<[u16]>, I: Debug {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("BatPU2")
+			.field("halted", &self.halted)
+			.field("rom size", &self.code.as_ref().len())
+			.field("pc", &self.pc)
+			.field_with("flags", |f| f.write_str(&format!("{:?}", self.flags)))
+			.field_with("registers", |f| f.write_str(&format!("{:?}", self.registers)))
+			.field_with("memory", |f| f.write_str(&format!("{:?}", self.memory)))
+			.field_with("call_stack", |f| f.write_str(&format!("{:?}", self.call_stack)))
+			.field("io", &self.io)
+			.finish()
+	}
 }
 
 #[cfg(feature = "embedded_io")]
