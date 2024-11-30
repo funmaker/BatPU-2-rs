@@ -307,7 +307,7 @@ impl Debug for Controller {
 		write!(f, "0x{:02X} ", self.state)?;
 		let mut set = f.debug_set();
 		for i in 0..Self::BUTTON_NAMES.len() {
-			if self.get_button(i as u8) {
+			if self.get_button((1 << i) as u8) {
 				set.entry_with(|f| f.write_str(Self::BUTTON_NAMES[i]));
 			}
 		}
