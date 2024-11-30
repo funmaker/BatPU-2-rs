@@ -250,7 +250,6 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 				for y in y_start..(y_start + h) {
 					queue!(io::stdout(),
 						cursor::MoveTo(x_start, y),
-						style::SetAttribute(Attribute::Bold),
 						style::SetBackgroundColor(Color::Rgb { r: 0x24, g: 0x24, b: 0x24 }),
 						style::Print(&str)
 					)?;
@@ -266,15 +265,13 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 				if (buttons & (1 << i)) != 0 {
 					queue!(io::stdout(),
 						cursor::MoveTo(x, y),
-						style::SetAttribute(Attribute::Bold),
 						style::SetForegroundColor(Color::Rgb { r: 0xff, g: 0xff, b: 0xff }),
-						style::SetBackgroundColor(Color::Rgb { r: 0x60, g: 0x60, b: 0x60 }),
+						style::SetBackgroundColor(Color::Rgb { r: 0x20, g: 0x20, b: 0x20 }),
 						style::Print(on_str),
 					)?;
 				}else{
 					queue!(io::stdout(),
 						cursor::MoveTo(x, y),
-						style::SetAttribute(Attribute::NoBold),
 						style::SetForegroundColor(Color::Rgb { r: 0xaa, g: 0xaa, b: 0xaa }),
 						style::SetBackgroundColor(Color::Rgb { r: 0x20, g: 0x20, b: 0x20 }),
 						style::Print(off_str),
@@ -283,7 +280,6 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 			}
 			
 			queue!(io::stdout(),
-				style::SetAttribute(Attribute::Reset),
 				style::SetBackgroundColor(Color::Rgb { r: 0x2d, g: 0x17, b: 0x10 }),
 				style::SetForegroundColor(Color::Rgb { r: 0xf0, g: 0xd4, b: 0xac }),
 			)?;
