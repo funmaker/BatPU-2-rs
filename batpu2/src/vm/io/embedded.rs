@@ -182,12 +182,14 @@ impl Debug for Screen {
 pub struct CharDisplay {
 	pub buffer: [Char; 10],
 	pub output: [Char; 10],
+	pub head: usize,
 }
 
 impl CharDisplay {
 	pub fn write(&mut self, char: Char) {
-		self.buffer.rotate_left(1);
-		self.buffer[self.buffer.len()-1] = char;
+		self.head = self.head % 10;
+		self.buffer[self.head] = char;
+		self.head += 1;
 	}
 	
 	pub fn show_buffer(&mut self) {
@@ -196,6 +198,7 @@ impl CharDisplay {
 	
 	pub fn clear_buffer(&mut self) {
 		self.buffer = [Char::SPACE; 10];
+		self.head = 0;
 	}
 	
 	pub fn clear_output(&mut self) {
@@ -299,6 +302,10 @@ impl Controller {
 	
 	pub fn set_button(&mut self, button: u8) {
 		self.state |= button;
+	}
+	
+	pub fn clear_button(&mut self, button: u8) {
+		self.state &= !button;
 	}
 }
 

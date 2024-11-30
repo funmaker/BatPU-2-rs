@@ -32,7 +32,7 @@ fn main() -> Result<()> {
 			Command::Help => arguments.print_usage(program, false),
 			Command::Run(path) => {
 				let file = fs::read_to_string(path)
-				              .with_context(|| format!("Failed to open: \"{path}\""))?;
+					.with_context(|| format!("Failed to open: \"{path}\""))?;
 				let code = parse_mc(&file)?;
 				
 				run(&code, &arguments)?;
@@ -55,7 +55,7 @@ fn parse_line(pos: usize, line: &str) -> Result<u16> {
 	ensure!(line.len() == 16, "Unexpected length {} of line {}, expected 16", line.len(), pos + 1);
 	
 	u16::from_str_radix(line, 2)
-	    .with_context(|| format!("Failed to parse line {}", pos + 1))
+		.with_context(|| format!("Failed to parse line {}", pos + 1))
 }
 
 fn parse_mc(code: &str) -> Result<Vec<u16>> {
@@ -115,7 +115,7 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	let mut char_display = Watch::new(|vm: &VM| vm.io.char_display.output);
 	let mut number_display = Watch::new(|vm: &VM| vm.io.number_display);
 	let mut buttons = Watch::new(|vm: &VM| vm.io.controller.state);
-
+	
 	loop {
 		let steps_target = (last_sec.elapsed().as_secs_f32() * arguments.tickrate) as usize;
 		if steps_target > steps {
@@ -145,7 +145,7 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 			queue!(io::stdout(), cursor::MoveTo(20, 1), style::Print(format!("{number_display:<4}")))?;
 			queued = true;
 		}
-
+		
 		if let Some(buttons) = buttons.changed(&vm) {
 			let x_start = 5i16;
 			let y_mid = 20i16;
@@ -172,9 +172,9 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 				}
 				Ok(())
 			}
-
+			
 			draw_controller_background(x_start as u16 - 1, y_mid as u16 - 1, 28, 3)?;
-
+			
 			for (i, (x, y, off_str, on_str)) in elements.iter().copied().enumerate() {
 				let x = (x_start + x) as u16;
 				let y = (y_mid + y) as u16;
