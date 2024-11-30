@@ -5,4 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.93"
+crossterm = "0.28.1"
 getopts = "0.2.21"
+batpu2 = { path = "../batpu2" }
