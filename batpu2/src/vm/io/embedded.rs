@@ -215,7 +215,7 @@ impl Display for CharDisplay {
 impl Debug for CharDisplay {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		let buffer_str: String = self.buffer.iter().map(ToString::to_string).collect();
-		let output_str: String = self.buffer.iter().map(ToString::to_string).collect();
+		let output_str: String = self.output.iter().map(ToString::to_string).collect();
 		f.debug_struct("CharDisplay")
 			.field("buffer", &buffer_str)
 			.field("output", &output_str)
