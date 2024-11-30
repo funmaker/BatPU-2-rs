@@ -1,4 +1,6 @@
 #![feature(try_blocks)]
+#![feature(array_chunks)]
+#![feature(hash_extract_if)]
 
 use std::fs;
 use std::io::Write;
@@ -6,13 +8,12 @@ use std::marker::PhantomData;
 use std::process::exit;
 use std::time::{Duration, Instant};
 use anyhow::{bail, Context, ensure, Result};
-use crossterm::style::{Attribute, Color, ContentStyle};
 
 mod arguments;
 
 use arguments::{Arguments, Command};
 use batpu2::BatPU2;
-use batpu2::embedded::EmbeddedIO;
+use batpu2::embedded::{Controller, EmbeddedIO};
 
 type VM<'a> = BatPU2<&'a [u16], EmbeddedIO>;
 
@@ -91,10 +92,16 @@ where W: Fn(&T) -> R,
 			None
 		}
 	}
+	
+	fn reset(&mut self) {
+		self.value = None;
+	}
 }
 
 fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	use crossterm::terminal::ClearType;
+	use crossterm::style::{ Color, Attribute };
+	use crossterm::event::{ Event, KeyEvent, KeyCode, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags };
 	use crossterm::*;
 	use std::io;
 	
@@ -104,8 +111,10 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	
 	execute!(io::stdout(),
 	         terminal::EnterAlternateScreen,
-	         terminal::Clear(ClearType::All),
+	         terminal::Clear(ClearType::Purge),
 	         cursor::Hide,
+	         style::SetBackgroundColor(Color::Rgb { r: 0x2d, g: 0x17, b: 0x10 }),
+	         style::SetForegroundColor(Color::Rgb { r: 0xf0, g: 0xd4, b: 0xac }),
 	         cursor::MoveTo(5, 5))?;
 	
 	let mut last_sec = Instant::now();
@@ -116,24 +125,79 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	let mut number_display = Watch::new(|vm: &VM| vm.io.number_display);
 	let mut buttons = Watch::new(|vm: &VM| vm.io.controller.state);
 	
+	let mut btn_times = std::collections::HashMap::<u8, Instant>::new();
+	
+	macro_rules! binds {
+		($event: expr, $vm: expr; $( $code: pat => $bit: expr ),* $(,)?) => {
+			match $event {
+				$(
+					Event::Key(KeyEvent {
+						code: $code,
+						kind: KeyEventKind::Press, ..
+					}) => {
+						btn_times.insert($bit, Instant::now());
+						$vm.io.controller.set_button($bit)
+					},
+					// Event::Key(KeyEvent {
+					// 	code: $code,
+					// 	kind: KeyEventKind::Release, ..
+					// }) => {
+					// 	$vm.io.controller.clear_button($bit)
+					// },
+				)*
+				_ => {},
+			}
+		};
+	}
+	
 	loop {
+		if event::poll(Duration::ZERO)? {
+			match event::read()? {
+				Event::Key(KeyEvent {
+					           code: KeyCode::Char('c'),
+					           modifiers: KeyModifiers::CONTROL,
+					           kind: KeyEventKind::Press,
+					           ..
+				           }) => {
+					break;
+				},
+				Event::Resize(_, _) => {
+					screen.reset();
+					char_display.reset();
+					number_display.reset();
+					
+					queue!(io::stdout(), terminal::Clear(ClearType::Purge))?;
+				},
+				event => {
+					binds!(event, vm;
+						KeyCode::Left => Controller::B_LEFT,
+						KeyCode::Down => Controller::B_DOWN,
+						KeyCode::Right => Controller::B_RIGHT,
+						KeyCode::Up => Controller::B_UP,
+						KeyCode::Char('z') => Controller::B_B,
+						KeyCode::Char('x') => Controller::B_A,
+						KeyCode::Esc => Controller::B_SELECT,
+						KeyCode::Enter => Controller::B_START,
+					)
+				},
+			}
+		}
+		
+		for (bit, _) in btn_times.extract_if(|_, time| time.elapsed().as_secs_f32() > 0.5) {
+			vm.io.controller.clear_button(bit);
+		}
+		
 		let steps_target = (last_sec.elapsed().as_secs_f32() * arguments.tickrate) as usize;
 		if steps_target > steps {
 			steps += vm.step_multiple((steps_target - steps).min(arguments.tickrate.max(10.0) as usize));
 		}
 		
-		if last_sec.elapsed().as_secs_f32() > 10.0 {
+		if last_sec.elapsed().as_secs_f32() > 1.0 {
 			last_sec = Instant::now();
 			steps = 0;
-			break;
 		}
 		
 		let mut queued = false;
-		
-		if let Some(screen) = screen.changed(&vm) {
-			// queue!(io::stdout(), style::Print("screen!"))?;
-			queued = true;
-		}
 		
 		if let Some(char_display) = char_display.changed(&vm) {
 			let str: String = char_display.iter().map(|x| x.to_char().unwrap_or('#')).collect();
@@ -142,13 +206,33 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 		}
 		
 		if let Some(number_display) = number_display.changed(&vm) {
-			queue!(io::stdout(), cursor::MoveTo(20, 1), style::Print(format!("{number_display:<4}")))?;
+			queue!(io::stdout(), cursor::MoveTo(29, 1), style::Print(format!("{number_display:<4}")))?;
+			queued = true;
+		}
+		
+		if let Some(screen) = screen.changed(&vm) {
+			for (y, [lower, upper]) in screen.array_chunks().rev().enumerate() {
+				let mut line = String::with_capacity(32 * 3); // 3 bytes per characters in utf-8
+				
+				for bit in (0..32).map(|b| 1 << b) {
+					let char = match (upper & bit != 0, lower & bit != 0) {
+						(false, false) => ' ',
+						(false, true ) => '▄',
+						(true,  false) => '▀',
+						(true,  true ) => '█',
+					};
+					line.push(char);
+				}
+				
+				queue!(io::stdout(), cursor::MoveTo(1, y as u16 + 3), style::Print(line))?;
+			}
+			
 			queued = true;
 		}
 		
 		if let Some(buttons) = buttons.changed(&vm) {
-			let x_start = 5i16;
-			let y_mid = 20i16;
+			let x_start = 4_i16;
+			let y_mid = 21_i16;
 			
 			let elements: [(i16, i16, &str, &str); 8] = [
 				(0, 0, "◁", "◀"),
@@ -160,6 +244,7 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 				(7, 0, "SELECT", "SELECT"),
 				(15, 0, "START", "START"),
 			];
+			
 			fn draw_controller_background(x_start: u16, y_start: u16, w: u16, h: u16) -> Result<()> {
 				let str: String = (0..w).map(|_| ' ').collect();
 				for y in y_start..(y_start + h) {
@@ -184,7 +269,7 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 						style::SetAttribute(Attribute::Bold),
 						style::SetForegroundColor(Color::Rgb { r: 0xff, g: 0xff, b: 0xff }),
 						style::SetBackgroundColor(Color::Rgb { r: 0x60, g: 0x60, b: 0x60 }),
-						style::Print(on_str)
+						style::Print(on_str),
 					)?;
 				}else{
 					queue!(io::stdout(),
@@ -192,11 +277,17 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 						style::SetAttribute(Attribute::NoBold),
 						style::SetForegroundColor(Color::Rgb { r: 0xaa, g: 0xaa, b: 0xaa }),
 						style::SetBackgroundColor(Color::Rgb { r: 0x20, g: 0x20, b: 0x20 }),
-						style::Print(off_str)
+						style::Print(off_str),
 					)?;
 				}
 			}
-			queue!(io::stdout(), style::ResetColor);
+			
+			queue!(io::stdout(),
+				style::SetAttribute(Attribute::Reset),
+				style::SetBackgroundColor(Color::Rgb { r: 0x2d, g: 0x17, b: 0x10 }),
+				style::SetForegroundColor(Color::Rgb { r: 0xf0, g: 0xd4, b: 0xac }),
+			)?;
+			
 			queued = true;
 		}
 		
@@ -225,6 +316,7 @@ fn recover_term() {
 	
 	print_err!(execute!(
 		std::io::stdout(),
+		event::PopKeyboardEnhancementFlags,
 		cursor::Show,
 		terminal::LeaveAlternateScreen,
 	));
