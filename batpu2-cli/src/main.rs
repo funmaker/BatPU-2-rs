@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::process::exit;
 use std::time::{Duration, Instant};
 use anyhow::{bail, Context, ensure, Result};
+use crossterm::style::{Attribute, Color, ContentStyle};
 
 mod arguments;
 
@@ -113,7 +114,8 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	let mut screen = Watch::new(|vm: &VM| vm.io.screen.output);
 	let mut char_display = Watch::new(|vm: &VM| vm.io.char_display.output);
 	let mut number_display = Watch::new(|vm: &VM| vm.io.number_display);
-	
+	let mut buttons = Watch::new(|vm: &VM| vm.io.controller.state);
+
 	loop {
 		let steps_target = (last_sec.elapsed().as_secs_f32() * arguments.tickrate) as usize;
 		if steps_target > steps {
@@ -141,6 +143,60 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 		
 		if let Some(number_display) = number_display.changed(&vm) {
 			queue!(io::stdout(), cursor::MoveTo(20, 1), style::Print(format!("{number_display:<4}")))?;
+			queued = true;
+		}
+
+		if let Some(buttons) = buttons.changed(&vm) {
+			let x_start = 5i16;
+			let y_mid = 20i16;
+			
+			let elements: [(i16, i16, &str, &str); 8] = [
+				(0, 0, "◁", "◀"),
+				(2, 1, "▽", "▼"),
+				(4, 0, "▷", "▶"),
+				(2, -1, "△", "▲"),
+				(25, 0, "B", "B"),
+				(22, 0, "A", "A"),
+				(7, 0, "SELECT", "SELECT"),
+				(15, 0, "START", "START"),
+			];
+			fn draw_controller_background(x_start: u16, y_start: u16, w: u16, h: u16) -> Result<()> {
+				let str: String = (0..w).map(|_| ' ').collect();
+				for y in y_start..(y_start + h) {
+					queue!(io::stdout(),
+						cursor::MoveTo(x_start, y),
+						style::SetAttribute(Attribute::Bold),
+						style::SetBackgroundColor(Color::Rgb { r: 0x24, g: 0x24, b: 0x24 }),
+						style::Print(&str)
+					)?;
+				}
+				Ok(())
+			}
+
+			draw_controller_background(x_start as u16 - 1, y_mid as u16 - 1, 28, 3)?;
+
+			for (i, (x, y, off_str, on_str)) in elements.iter().copied().enumerate() {
+				let x = (x_start + x) as u16;
+				let y = (y_mid + y) as u16;
+				if (buttons & (1 << i)) != 0 {
+					queue!(io::stdout(),
+						cursor::MoveTo(x, y),
+						style::SetAttribute(Attribute::Bold),
+						style::SetForegroundColor(Color::Rgb { r: 0xff, g: 0xff, b: 0xff }),
+						style::SetBackgroundColor(Color::Rgb { r: 0x60, g: 0x60, b: 0x60 }),
+						style::Print(on_str)
+					)?;
+				}else{
+					queue!(io::stdout(),
+						cursor::MoveTo(x, y),
+						style::SetAttribute(Attribute::NoBold),
+						style::SetForegroundColor(Color::Rgb { r: 0xaa, g: 0xaa, b: 0xaa }),
+						style::SetBackgroundColor(Color::Rgb { r: 0x20, g: 0x20, b: 0x20 }),
+						style::Print(off_str)
+					)?;
+				}
+			}
+			queue!(io::stdout(), style::ResetColor);
 			queued = true;
 		}
 		
