@@ -223,7 +223,7 @@ impl Debug for CharDisplay {
 	}
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub struct NumberDisplay {
 	pub value: Option<u8>,
 	pub signed: bool,
@@ -256,9 +256,9 @@ impl Display for NumberDisplay {
 			Some(value) => {
 				if self.signed {
 					let signed = value.cast_signed();
-					write!(f, "{}", signed)
+					Display::fmt(&signed, f)
 				}else{
-					write!(f, "{}", value)
+					Display::fmt(&value, f)
 				}
 			}
 		}

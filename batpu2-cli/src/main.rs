@@ -112,7 +112,7 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	
 	let mut screen = Watch::new(|vm: &VM| vm.io.screen.output);
 	let mut char_display = Watch::new(|vm: &VM| vm.io.char_display.output);
-	let mut number_display = Watch::new(|vm: &VM| vm.io.number_display.value);
+	let mut number_display = Watch::new(|vm: &VM| vm.io.number_display);
 	
 	loop {
 		let steps_target = (last_sec.elapsed().as_secs_f32() * arguments.tickrate) as usize;
@@ -120,7 +120,7 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 			steps += vm.step_multiple((steps_target - steps).min(arguments.tickrate.max(10.0) as usize));
 		}
 		
-		if last_sec.elapsed().as_secs_f32() > 1.0 {
+		if last_sec.elapsed().as_secs_f32() > 10.0 {
 			last_sec = Instant::now();
 			steps = 0;
 			break;
@@ -129,17 +129,18 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 		let mut queued = false;
 		
 		if let Some(screen) = screen.changed(&vm) {
-			queue!(io::stdout(), style::Print("screen!"))?;
+			// queue!(io::stdout(), style::Print("screen!"))?;
 			queued = true;
 		}
 		
 		if let Some(char_display) = char_display.changed(&vm) {
-			queue!(io::stdout(), style::Print("char_display!"))?;
+			let str: String = char_display.iter().map(|x| x.to_char().unwrap_or('#')).collect();
+			queue!(io::stdout(), cursor::MoveTo(1, 1), style::Print(str))?;
 			queued = true;
 		}
 		
 		if let Some(number_display) = number_display.changed(&vm) {
-			queue!(io::stdout(), style::Print("number_display!"))?;
+			queue!(io::stdout(), cursor::MoveTo(20, 1), style::Print(format!("{number_display:<4}")))?;
 			queued = true;
 		}
 		
