@@ -160,12 +160,12 @@ where T: AsRef<[u16]>,
 			Opcode::RSH => { self.write_register(operand_r_c, self.registers[operand_r_a] >> 1) }
 			Opcode::LDI => { self.write_register(operand_r_a, operand_imm) }
 			Opcode::ADI => {
-				let (result, overflow) = operand_imm.overflowing_add(self.registers[operand_r_b]);
+				let (result, overflow) = operand_imm.overflowing_add(self.registers[operand_r_a]);
 				self.write_register_update_flags(operand_r_a, result, overflow);
 			}
 			Opcode::JMP => { self.pc = operand_m }
 			Opcode::BRH => {
-				if self.match_flags(ConditionalFlags::try_from(((instruction & 0x0300) >> 8) as u8).unwrap()) {
+				if self.match_flags(ConditionalFlags::try_from(((instruction & 0x0C00) >> 10) as u8).unwrap()) {
 					self.pc = operand_m;
 				}
 			}
