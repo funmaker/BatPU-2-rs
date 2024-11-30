@@ -100,8 +100,8 @@ where W: Fn(&T) -> R,
 
 fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	use crossterm::terminal::ClearType;
-	use crossterm::style::{ Color, Attribute };
-	use crossterm::event::{ Event, KeyEvent, KeyCode, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags };
+	use crossterm::style::Color;
+	use crossterm::event::{ Event, KeyEvent, KeyCode, KeyEventKind, KeyModifiers };
 	use crossterm::*;
 	use std::io;
 	
@@ -178,6 +178,14 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 						KeyCode::Char('x') => Controller::B_A,
 						KeyCode::Esc => Controller::B_SELECT,
 						KeyCode::Enter => Controller::B_START,
+						KeyCode::Char('a') => Controller::B_LEFT,
+						KeyCode::Char('s') => Controller::B_DOWN,
+						KeyCode::Char('d') => Controller::B_RIGHT,
+						KeyCode::Char('w') => Controller::B_UP,
+						KeyCode::Char('k') => Controller::B_B,
+						KeyCode::Char('j') => Controller::B_A,
+						KeyCode::Char('t') => Controller::B_SELECT,
+						KeyCode::Char('y') => Controller::B_START,
 					)
 				},
 			}
