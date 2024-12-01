@@ -1,29 +1,30 @@
 use std::fmt::{Display, Formatter};
+use crate::Char;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct File {
-	file_name: Option<String>,
-	lines: Vec<Line>,
+	pub file_name: Option<String>,
+	pub lines: Vec<Line>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Line {
-	line_number: usize,
-	label: Option<String>,
-	instruction: Option<Instruction>,
-	comment: Option<String>,
+	pub line_number: usize,
+	pub label: Option<String>,
+	pub instruction: Option<Instruction>,
+	pub comment: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Instruction {
-	mnemonic: String,
-	operands: Vec<Operand>
+	pub mnemonic: String,
+	pub operands: Vec<Operand>
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Operand {
 	Number(i32),
-	Character(String),
+	Character(Char),
 	Symbol(String),
 }
 
@@ -38,6 +39,14 @@ impl File {
 			           .collect::<Result<_, _>>()
 			           .map_err(|err| if let Some(f_name) = file_name { format!("{}:{}", f_name, err) } else { err })?,
 		})
+	}
+	
+	pub fn error_prefix(&self, line_number: usize) -> String {
+		if let Some(f_name) = &self.file_name {
+			format!("{}:{}: ", f_name, line_number)
+		} else {
+			format!("{}: ", line_number)
+		}
 	}
 }
 
@@ -103,7 +112,7 @@ impl Operand {
 		if text.chars().all(char::is_numeric) {
 			Ok(Operand::Number(text.parse().or(Err(format!("Cannot parse {text} as a number!")))?))
 		}else if text.len() == 3 && text.starts_with(|c: char| { c == '"' || c == '\'' }) && text.ends_with(text.chars().next().unwrap()) {
-			Ok(Operand::Character(String::from(text.chars().skip(1).next().unwrap())))
+			Ok(Operand::Character(text.chars().skip(1).next().unwrap().try_into()?))
 		}else if text.len() > 0 {
 			Ok(Operand::Symbol(String::from(text)))
 		}else{

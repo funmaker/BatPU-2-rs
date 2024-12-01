@@ -29,6 +29,7 @@ macro_rules! isa {
         mod isa {
             use $crate::isa::macros::*;
             
+            #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
             pub(super) enum Cond {
                 Zero,
                 NotZero,
@@ -36,12 +37,13 @@ macro_rules! isa {
                 NotCarry,
             }
             
-            #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-            #[repr(u8)]
+            #[derive(Debug, Copy, Clone, Eq, PartialEq)]
             pub(super) enum Mnemonic {
-                $( $mnemonic = $opcode, )*
-                $($( $alias = Mnemonic::$target as u8, )*)?
+                $( $mnemonic, )*
+                $($( $alias, )*)?
             }
+            
+            #[derive(Debug, Copy, Clone, Eq, PartialEq)]
             pub(super) enum Instruction {
                 $( $mnemonic $( { $( $operand: operand_type!($operand), )* } )?, )*
             }

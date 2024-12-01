@@ -32,10 +32,10 @@ macros::isa! {
 }
 
 fn test() {
-	let Instruction::ADD { a, b, c } = _;
-	let Instruction::LDI { a,  imm } = _;
-	let Instruction::BRH { cond, addr } = _;
-	let Instruction::HLT = _;
-	
-	Mnemonic::
+	// let Instruction::ADD { a, b, c } = _;
+	// let Instruction::LDI { a,  imm } = _;
+	// let Instruction::BRH { cond, addr } = _;
+	// let Instruction::HLT = _;
+	//
+	// Mnemonic::
 }

@@ -25,6 +25,22 @@ impl Char {
 	}
 }
 
+impl TryFrom<char> for Char {
+	type Error = String; // todo
+	
+	fn try_from(value: char) -> Result<Self, Self::Error> {
+		if value == ' ' { Ok(Char::SPACE) }
+		else if value == '.' { Ok(Char::new(27)) }
+		else if value == '!' { Ok(Char::new(28)) }
+		else if value == '?' { Ok(Char::new(29)) }
+		else if value.is_ascii_alphabetic() {
+			Ok(Char::new(value.to_ascii_uppercase() as u8 - 'A' as u8 + 1))
+		}else{
+			Err(format!("invalid char: {}", value))
+		}
+	}
+}
+
 impl Display for Char {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		if let Some(c) = self.to_char() {
