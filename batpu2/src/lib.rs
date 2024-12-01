@@ -3,6 +3,7 @@
 
 mod vm;
 mod char;
+mod asm;
 
 pub use vm::BatPU2;
 pub use vm::flags::Flags;
