@@ -35,7 +35,8 @@ impl File {
 			           .enumerate()
 			           .filter(|(_, line)| !line.is_empty() && !line.chars().all(char::is_whitespace))
 			           .map(|(line, code)| Line::from_text(code, line))
-			           .collect::<Result<_, _>>()?,
+			           .collect::<Result<_, _>>()
+			           .map_err(|err| if let Some(f_name) = file_name { format!("{}:{}", f_name, err) } else { err })?,
 		})
 	}
 }
@@ -61,7 +62,8 @@ impl Line {
 			words.peek()
 			     .is_some()
 			     .then(|| Instruction::from_text(words))
-			     .transpose()?;
+			     .transpose()
+				 .map_err(|err| format!("{}: {}", line_number, err))?;
 		
 		Ok(Line {
 			line_number,
