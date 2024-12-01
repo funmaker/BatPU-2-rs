@@ -22,6 +22,12 @@ pub struct Instruction {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ResolvedInstruction {
+	pub mnemonic: String,
+	pub operands: Vec<u16>
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Operand {
 	Number(i32),
 	Character(Char),

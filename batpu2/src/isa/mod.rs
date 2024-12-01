@@ -31,11 +31,16 @@ macros::isa! {
 	}
 }
 
-fn test() {
-	// let Instruction::ADD { a, b, c } = _;
-	// let Instruction::LDI { a,  imm } = _;
-	// let Instruction::BRH { cond, addr } = _;
-	// let Instruction::HLT = _;
-	//
-	// Mnemonic::
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::asm::ast;
+	
+	#[test]
+	fn it_works() {
+		let inst = Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "LDI".to_string(), operands: vec![8, 64], }).unwrap();
+		
+		println!("{inst:?}");
+	}
 }
