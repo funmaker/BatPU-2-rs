@@ -11,6 +11,18 @@ macro_rules! operand_type {
 
 pub(crate) use operand_type;
 
+macro_rules! operand_mask {
+	( a ) =>      { 0b_0000_1111_0000_0000_u16 };
+	( b ) =>      { 0b_0000_0000_1111_0000_u16 };
+	( c ) =>      { 0b_0000_0000_0000_1111_u16 };
+	( imm ) =>    { 0b_0000_0000_1111_1111_u16 };
+	( addr ) =>   { 0b_0000_0011_1111_1111_u16 };
+	( cond ) =>   { 0b_0000_1100_0000_0000_u16 };
+	( offset ) => { 0b_0000_0000_0000_1111_u16 };
+}
+
+pub(crate) use operand_mask;
+
 macro_rules! count {
     () => { 0usize };
     ($_head:tt $($tail:tt)*) => { 1usize + count!($($tail)*) };
@@ -34,9 +46,10 @@ macro_rules! isa {
 		)?
 	) => {
 		mod generated {
-			use $crate::asm::ast;
+			use std::fmt::{Display, Formatter};
 			use $crate::isa::macros::*;
 			
+			// #[repr(u8)]
 			// #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 			// pub(super) enum Cond {
 			// 	Zero,
@@ -60,40 +73,95 @@ macro_rules! isa {
 				}
 			}
 			
-			#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-			pub enum Instruction {
-				$( $mnemonic $( { $( $operand: operand_type!($operand), )* } )?, )*
+			impl Display for Mnemonic {
+				fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+					match self {
+						$( Self::$mnemonic => stringify!($mnemonic).fmt(f), )*
+						$($( Self::$alias => stringify!($alias).fmt(f), )*)?
+					}
+				}
 			}
 			
-			impl TryFrom<&ast::ResolvedInstruction> for Instruction {
+			impl TryFrom<&str> for Mnemonic {
 				type Error = String;
 				
-				fn try_from(resolved: &ast::ResolvedInstruction) -> Result<Self, String> {
-					let mut operands = resolved.operands.iter();
-					
-					match &*resolved.mnemonic {
+				fn try_from(name: &str) -> Result<Self, String> {
+					match name {
 						$(
-							stringify!($mnemonic) => {
-								if resolved.operands.len() != Mnemonic::$mnemonic.operand_count() {
-									return Err(format!(concat!("Invalid number of operands for ", stringify!($mnemonic), ", expected {}, got {}"), Mnemonic::$mnemonic.operand_count(), resolved.operands.len()));
-								}
-								
-								Ok(
-									Instruction::$mnemonic $( { $(
-									   $operand: operands.next().copied().unwrap() as operand_type!($operand),
-									)* } )?
-								)
-							}
+							stringify!($mnemonic) => Ok(Mnemonic::$mnemonic),
 						)*
 						$($(
-							stringify!($alias) => {
-								let _ = Mnemonic::$alias.operand_count();
-								unimplemented!()
-							},
+							stringify!($alias) => Ok(Mnemonic::$alias),
 						)*)?
-						_ => {
-							return Err(format!("Unknown mnemonic \"{}\"", resolved.mnemonic));
-						}
+						name => Err(format!("Unknown mnemonic \"{name}\"")),
+					}
+				}
+			}
+			
+			impl TryFrom<u8> for Mnemonic {
+				type Error = String;
+				
+				fn try_from(opcode: u8) -> Result<Self, String> {
+					match opcode {
+						$(
+							$opcode => Ok(Mnemonic::$mnemonic),
+						)*
+						_ => Err(format!("Unknown opcode {opcode}")),
+					}
+				}
+			}
+			
+			#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+			pub enum Instruction {
+				$( $mnemonic $({$( $operand: operand_type!($operand), )*})?, )*
+			}
+			
+			impl Instruction {
+				pub fn new(mnemonic: Mnemonic, mut operands: impl Iterator<Item = u16> + ExactSizeIterator) -> Result<Self, String> {
+					if operands.len() != mnemonic.operand_count() {
+						return Err(format!("Invalid number of operands for {mnemonic}, expected {}, got {}", mnemonic.operand_count(), operands.len()));
+					}
+					
+					match mnemonic {
+						$(
+							Mnemonic::$mnemonic => Ok(Instruction::$mnemonic $({$(
+							   $operand: operands.next().unwrap() as operand_type!($operand),
+							)*})?),
+						)*
+						$($(
+							Mnemonic::$alias => unimplemented!(),
+						)*)?
+					}
+				}
+				
+				pub fn as_u16(self) -> u16 {
+					self.into()
+				}
+			}
+			
+			impl Into<u16> for Instruction {
+				fn into(self) -> u16 {
+					match self {
+						$(
+							Instruction::$mnemonic $({$( $operand ),*})? => $opcode << 12 $($(
+								| ($operand as u16) << operand_mask!($operand).trailing_zeros() & operand_mask!($operand)
+							)*)?,
+						)*
+					}
+				}
+			}
+			
+			impl From<u16> for Instruction {
+				fn from(value: u16) -> Self {
+					let mnemonic = Mnemonic::try_from((value >> 12) as u8).unwrap();
+					
+					match mnemonic {
+						$(
+							Mnemonic::$mnemonic => Instruction::$mnemonic $({$(
+							   $operand: ((value & operand_mask!($operand)) >> operand_mask!($operand).trailing_zeros()) as operand_type!($operand),
+							)*})?,
+						)*
+						_ => unreachable!(),
 					}
 				}
 			}
