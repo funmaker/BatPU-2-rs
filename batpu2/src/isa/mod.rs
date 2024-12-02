@@ -23,13 +23,13 @@ macros::isa! {
 	}
 	
 	pub aliases {
-		CMP(a, b) => SUB(a, b, r0),
-		MOV(a, c) => ADD(a, r0, c),
+		CMP(a, b) => SUB(a, b, 0),
+		MOV(a, c) => ADD(a, 0, c),
 		LSH(a, c) => ADD(a, a, c),
 		INC(a)    => ADI(a, 1),
-		DEC(a)    => ADI(a, -1),
-		NOT(a, c) => NOR(a, r0, c),
-		NEG(a, c) => SUB(r0, a, c),
+		DEC(a)    => ADI(a, 0xFF),
+		NOT(a, c) => NOR(a, 0, c),
+		NEG(a, c) => SUB(0, a, c),
 	}
 }
 

@@ -49,15 +49,6 @@ macro_rules! isa {
 			use std::fmt::{Display, Formatter};
 			use $crate::isa::macros::*;
 			
-			// #[repr(u8)]
-			// #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-			// pub(super) enum Cond {
-			// 	Zero,
-			// 	NotZero,
-			// 	Carry,
-			// 	NotCarry,
-			// }
-			
 			#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 			pub enum Mnemonic {
 				$( $mnemonic, )*
@@ -117,7 +108,11 @@ macro_rules! isa {
 			}
 			
 			impl Instruction {
-				pub fn new(mnemonic: Mnemonic, mut operands: impl Iterator<Item = u16> + ExactSizeIterator) -> Result<Self, String> {
+				pub fn new<Ops>(mnemonic: Mnemonic, operands: Ops) -> Result<Self, String>
+				where Ops: IntoIterator,
+				      Ops::IntoIter: Iterator<Item = u16> + ExactSizeIterator {
+					let mut operands = operands.into_iter();
+					
 					if operands.len() != mnemonic.operand_count() {
 						return Err(format!("Invalid number of operands for {mnemonic}, expected {}, got {}", mnemonic.operand_count(), operands.len()));
 					}
@@ -129,7 +124,10 @@ macro_rules! isa {
 							)*})?),
 						)*
 						$($(
-							Mnemonic::$alias => unimplemented!(),
+							Mnemonic::$alias => {
+								$( let $alias_op = operands.next().unwrap(); )*
+								Instruction::new(Mnemonic::$target, [$( $target_op ),*])
+							},
 						)*)?
 					}
 				}
