@@ -5,11 +5,31 @@ macro_rules! operand_type {
 	( c ) => { u8 };
 	( imm ) => { u8 };
 	( addr ) => { u16 };
-	( cond ) => { u8 };
+	( cond ) => { Cond };
 	( offset ) => { u8 };
 }
 
 pub(crate) use operand_type;
+
+macro_rules! operand_from {
+	( a, $val:expr ) => { $val as u8 };
+	( b, $val:expr ) => { $val as u8 };
+	( c, $val:expr ) => { $val as u8 };
+	( imm, $val:expr ) => { $val as u8 };
+	( addr, $val:expr ) => { $val as u16 };
+	( cond, $val:expr ) => {
+		match $val {
+			0b_00 => Cond::Zero,
+			0b_01 => Cond::NotZero,
+			0b_10 => Cond::Carry,
+			0b_11 => Cond::NotCarry,
+			_ => unreachable!(),
+		}
+	};
+	( offset, $val:expr ) => { $val as u8 };
+}
+
+pub(crate) use operand_from;
 
 macro_rules! operand_mask {
 	( a ) =>      { 0b_0000_1111_0000_0000_u16 };
@@ -48,6 +68,15 @@ macro_rules! isa {
 		mod generated {
 			use std::fmt::{Display, Formatter};
 			use $crate::isa::macros::*;
+			
+			#[repr(u8)]
+			#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+			pub enum Cond {
+				Zero     = 0b_00,
+				NotZero  = 0b_01,
+				Carry    = 0b_10,
+				NotCarry = 0b_11,
+			}
 			
 			#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 			pub enum Mnemonic {
@@ -120,7 +149,7 @@ macro_rules! isa {
 					match mnemonic {
 						$(
 							Mnemonic::$mnemonic => Ok(Instruction::$mnemonic $({$(
-							   $operand: operands.next().unwrap() as operand_type!($operand),
+							   $operand: operand_from!($operand, operands.next().unwrap()),
 							)*})?),
 						)*
 						$($(
@@ -156,7 +185,7 @@ macro_rules! isa {
 					match mnemonic {
 						$(
 							Mnemonic::$mnemonic => Instruction::$mnemonic $({$(
-							   $operand: ((value & operand_mask!($operand)) >> operand_mask!($operand).trailing_zeros()) as operand_type!($operand),
+							   $operand: operand_from!($operand, (value & operand_mask!($operand)) >> operand_mask!($operand).trailing_zeros()),
 							)*})?,
 						)*
 						_ => unreachable!(),
