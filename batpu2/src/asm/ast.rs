@@ -115,14 +115,18 @@ impl Instruction {
 
 impl Operand {
 	pub fn from_text(text: &str) -> Result<Operand, String> {
-		if text.chars().all(char::is_numeric) {
+		let first_char = text.chars().next();
+		if first_char == None {
+			return Err("Empty operand!".into())
+		}
+		let first_char = first_char.unwrap();
+		
+		if (first_char == '-' || first_char.is_numeric()) && text.chars().skip(1).all(char::is_numeric) {
 			Ok(Operand::Number(text.parse().or(Err(format!("Cannot parse {text} as a number!")))?))
 		}else if text.len() == 3 && text.starts_with(|c: char| { c == '"' || c == '\'' }) && text.ends_with(text.chars().next().unwrap()) {
 			Ok(Operand::Character(text.chars().skip(1).next().unwrap().try_into()?))
-		}else if text.len() > 0 {
+		}else {
 			Ok(Operand::Symbol(String::from(text)))
-		}else{
-			Err("Empty operand!".into())
 		}
 	}
 }
