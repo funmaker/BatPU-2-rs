@@ -2,7 +2,8 @@ use std::fmt::{Debug, Display, Formatter};
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 
-use crate::{IO, Char};
+use super::char::Char;
+use super::IO;
 
 #[derive(Clone)]
 pub struct EmbeddedIO {
@@ -41,72 +42,87 @@ impl Debug for EmbeddedIO {
 }
 
 impl IO for EmbeddedIO {
-	fn set_pixel_x(&mut self, value: u8) {
+	type Error = !;
+	
+	fn set_pixel_x(&mut self, value: u8) -> Result<(), Self::Error> {
 		self.screen.x = value & 0b11111;
+		Ok(())
 	}
 	
-	fn set_pixel_y(&mut self, value: u8) {
+	fn set_pixel_y(&mut self, value: u8) -> Result<(), Self::Error> {
 		self.screen.y = value & 0b11111;
+		Ok(())
 	}
 	
-	fn draw_pixel(&mut self) {
+	fn draw_pixel(&mut self) -> Result<(), Self::Error> {
 		self.screen.set_buffer_pixel(self.screen.x, self.screen.y, true);
+		Ok(())
 	}
 	
-	fn clear_pixel(&mut self) {
+	fn clear_pixel(&mut self) -> Result<(), Self::Error> {
 		self.screen.set_buffer_pixel(self.screen.x, self.screen.y, false);
+		Ok(())
 	}
 	
-	fn load_pixel(&mut self) -> u8 {
+	fn load_pixel(&mut self) -> Result<u8, Self::Error> {
 		if self.screen.get_buffer_pixel(self.screen.x, self.screen.y) {
-			1
+			Ok(1)
 		} else {
-			0
+			Ok(0)
 		}
 	}
 	
-	fn show_screen_buffer(&mut self) {
+	fn show_screen_buffer(&mut self) -> Result<(), Self::Error> {
 		self.screen.show_buffer();
+		Ok(())
 	}
 	
-	fn clear_screen_buffer(&mut self) {
+	fn clear_screen_buffer(&mut self) -> Result<(), Self::Error> {
 		self.screen.clear_buffer();
+		Ok(())
 	}
 	
-	fn write_char(&mut self, value: u8) {
+	fn write_char(&mut self, value: u8) -> Result<(), Self::Error> {
 		self.char_display.write(Char::new(value));
+		Ok(())
 	}
 	
-	fn show_char_buffer(&mut self) {
+	fn show_char_buffer(&mut self) -> Result<(), Self::Error> {
 		self.char_display.show_buffer();
+		Ok(())
 	}
 	
-	fn clear_char_buffer(&mut self) {
+	fn clear_char_buffer(&mut self) -> Result<(), Self::Error> {
 		self.char_display.clear_buffer();
+		Ok(())
 	}
 	
-	fn show_number(&mut self, value: u8) {
+	fn show_number(&mut self, value: u8) -> Result<(), Self::Error> {
 		self.number_display.set(value);
+		Ok(())
 	}
 	
-	fn clear_number(&mut self) {
+	fn clear_number(&mut self) -> Result<(), Self::Error> {
 		self.number_display.clear();
+		Ok(())
 	}
 	
-	fn set_number_signed(&mut self) {
+	fn set_number_signed(&mut self) -> Result<(), Self::Error> {
 		self.number_display.signed = true;
+		Ok(())
 	}
 	
-	fn set_number_unsigned(&mut self) {
+	fn set_number_unsigned(&mut self) -> Result<(), Self::Error> {
 		self.number_display.signed = false;
+		Ok(())
 	}
 	
-	fn get_rng(&mut self) -> u8 {
-		self.rng.gen()
+	fn get_rng(&mut self) -> Result<u8, Self::Error> {
+		Ok(self.rng.gen())
 	}
 	
-	fn get_controller(&mut self) -> u8 {
-		self.controller.state
+	fn get_controller(&mut self) -> Result<u8, Self::Error> {
+		Ok(self.controller.state)
 	}
 }
 

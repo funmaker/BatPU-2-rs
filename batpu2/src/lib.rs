@@ -1,28 +1,26 @@
 #![allow(dead_code)]
 #![feature(integer_sign_cast)]
 #![feature(debug_closure_helpers)]
+#![feature(never_type)]
 
-mod vm;
-mod char;
-mod asm;
-mod isa;
+pub mod vm;
+pub mod asm;
+pub mod isa;
 
 pub use vm::BatPU2;
-pub use vm::flags::Flags;
-pub use vm::io::{IO, RawIO};
-pub use char::Char;
-
-#[cfg(feature = "embedded_io")]
-pub use vm::io::embedded;
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::BatPU2;
 	
 	#[test]
 	#[cfg(feature = "embedded_io")]
 	fn it_works() {
 		BatPU2::new([0, 0, 1, 2, 3]);
+		BatPU2::new(&[0, 0, 1, 2, 3]);
+		BatPU2::new(&[0, 0, 1, 2, 3][..]);
+		BatPU2::new(vec![0, 0, 1, 2, 3]);
+		BatPU2::new(std::sync::Arc::new([0, 0, 1, 2, 3]));
 	}
 	
 	#[test]

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+
 use crate::asm::ast::{File, Operand, ResolvedInstruction};
-use crate::{isa, Char};
+use crate::vm::io::char::Char;
+use crate::isa;
 
 fn default_symbols() -> HashMap<String, u16> {
 	let mut map = HashMap::new();

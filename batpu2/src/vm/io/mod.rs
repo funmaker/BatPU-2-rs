@@ -1,44 +1,50 @@
+use std::error::Error as StdError;
 
 #[cfg(feature = "embedded_io")]
 pub mod embedded;
-#[cfg(feature = "embedded_io")]
-pub use embedded::EmbeddedIO;
+pub mod char;
 
 pub trait RawIO {
-	fn read_addr(&mut self, addr: u8) -> u8;
-	fn write_addr(&mut self, addr: u8, value: u8) -> ();
+	type Error: StdError + 'static;
+	
+	fn read_addr(&mut self, addr: u8) -> Result<u8, Self::Error>;
+	fn write_addr(&mut self, addr: u8, value: u8) -> Result<(), Self::Error>;
 }
 
-pub trait IO {                            // Address
-	fn set_pixel_x(&mut self, value: u8); // 240
-	fn set_pixel_y(&mut self, value: u8); // 241
-	fn draw_pixel(&mut self);             // 242
-	fn clear_pixel(&mut self);            // 243
-	fn load_pixel(&mut self) -> u8;       // 244
-	fn show_screen_buffer(&mut self);     // 245
-	fn clear_screen_buffer(&mut self);    // 246
-	fn write_char(&mut self, value: u8);  // 247
-	fn show_char_buffer(&mut self);       // 248
-	fn clear_char_buffer(&mut self);      // 249
-	fn show_number(&mut self, value: u8); // 250
-	fn clear_number(&mut self);           // 251
-	fn set_number_signed(&mut self);      // 252
-	fn set_number_unsigned(&mut self);    // 253
-	fn get_rng(&mut self) -> u8;          // 254
-	fn get_controller(&mut self) -> u8;   // 255
+pub trait IO {
+	type Error: StdError + 'static;
+	                                                                 // Address
+	fn set_pixel_x(&mut self, value: u8) -> Result<(), Self::Error>; // 240
+	fn set_pixel_y(&mut self, value: u8) -> Result<(), Self::Error>; // 241
+	fn draw_pixel(&mut self)             -> Result<(), Self::Error>; // 242
+	fn clear_pixel(&mut self)            -> Result<(), Self::Error>; // 243
+	fn load_pixel(&mut self)             -> Result<u8, Self::Error>; // 244
+	fn show_screen_buffer(&mut self)     -> Result<(), Self::Error>; // 245
+	fn clear_screen_buffer(&mut self)    -> Result<(), Self::Error>; // 246
+	fn write_char(&mut self, value: u8)  -> Result<(), Self::Error>; // 247
+	fn show_char_buffer(&mut self)       -> Result<(), Self::Error>; // 248
+	fn clear_char_buffer(&mut self)      -> Result<(), Self::Error>; // 249
+	fn show_number(&mut self, value: u8) -> Result<(), Self::Error>; // 250
+	fn clear_number(&mut self)           -> Result<(), Self::Error>; // 251
+	fn set_number_signed(&mut self)      -> Result<(), Self::Error>; // 252
+	fn set_number_unsigned(&mut self)    -> Result<(), Self::Error>; // 253
+	fn get_rng(&mut self)                -> Result<u8, Self::Error>; // 254
+	fn get_controller(&mut self)         -> Result<u8, Self::Error>; // 255
 }
 
 impl<T: IO> RawIO for T {
-	fn read_addr(&mut self, addr: u8) -> u8 {
+	type Error = <T as IO>::Error;
+	
+	fn read_addr(&mut self, addr: u8) -> Result<u8, Self::Error> {
 		match addr {
 			244 => self.load_pixel(),
 			254 => self.get_rng(),
 			255 => self.get_controller(),
-			_ => 0,
+			_ => Ok(0),
 		}
 	}
 	
-	fn write_addr(&mut self, addr: u8, value: u8) -> () {
+	fn write_addr(&mut self, addr: u8, value: u8) -> Result<(), Self::Error> {
 		match addr {
 			240 => self.set_pixel_x(value),
 			241 => self.set_pixel_y(value),
@@ -53,7 +59,7 @@ impl<T: IO> RawIO for T {
 			251 => self.clear_number(),
 			252 => self.set_number_signed(),
 			253 => self.set_number_unsigned(),
-			_ => {},
+			_ => Ok(()),
 		}
 	}
 }

@@ -13,7 +13,7 @@ mod arguments;
 
 use arguments::{Arguments, Command};
 use batpu2::BatPU2;
-use batpu2::embedded::{Controller, EmbeddedIO};
+use batpu2::vm::io::embedded::{EmbeddedIO, Controller};
 
 type VM<'a> = BatPU2<&'a [u16], EmbeddedIO>;
 

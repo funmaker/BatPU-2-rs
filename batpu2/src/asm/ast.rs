@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
-use crate::Char;
+
+use crate::vm::io::char::Char;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct File {
