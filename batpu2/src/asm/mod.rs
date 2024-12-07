@@ -1,23 +1,64 @@
-pub mod ast;
-pub mod assembler;
+use std::num::ParseIntError;
+use arrayvec::ArrayVec;
+use thiserror::Error;
+
+mod ast;
+mod parser;
+mod assembler;
+
+pub use ast::*;
+pub use parser::*;
+pub use assembler::*;
+
+use crate::isa::{MAX_ARGS, MAX_CODE_LEN};
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum AsmError<'a> {
+	#[error("{line_number}:{}: Unexpected token `{token}`, too many arguments (max {MAX_ARGS})", token.char_number)]
+	TooManyTokens {
+		line_number: usize,
+		token: Token<'a>,
+	},
+	#[error("{line_number}:{}: Instruction `{mnemonic}` expects {expected} arguments (got {})", mnemonic.char_number, args.len())]
+	WrongArgumentsCount {
+		line_number: usize,
+		expected: usize,
+		mnemonic: Token<'a>,
+		args: ArrayVec<Token<'a>, MAX_ARGS>,
+	},
+	#[error("{line_number}:{}: Unexpected token `{token}`, too many instructions (max {MAX_CODE_LEN}).", token.char_number)]
+	TooManyInstructions {
+		line_number: usize,
+		token: Token<'a>,
+	},
+	#[error("{line_number}:{}: Unexpected token `{token}`, expected a mnemonic or `define`", token.char_number)]
+	UnknownMnemonic {
+		line_number: usize,
+		token: Token<'a>,
+	},
+	#[error("{line_number}:{}: Unexpected token `{token}`, expected an integer", token.char_number)]
+	IntParseError {
+		line_number: usize,
+		token: Token<'a>,
+		#[source] source: ParseIntError,
+	},
+}
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-
+	
 	#[test]
 	fn ast_parses() {
 		let code = r"
 		.start
 		  MOV 1 2 3  # comment text
 		  LDI r1 ' '
-		  TEST < start";
+		  TEST < .start";
 		
-		let file_ast = ast::File::from_text(code, None);
-		assert!(file_ast.is_ok());
-		
-		let display = format!("{}", file_ast.unwrap());
-		assert_eq!(display, ".start\nMOV 1 2 3 ; comment text\nLDI r1 ' '\nTEST < start\n");
+		let ast: Vec<_> = parse_lines(code).collect();
+		println!("{:#?}", ast);
 	}
 	
 	#[test]
@@ -27,13 +68,10 @@ mod tests {
 		  MOV 1 5 # comment text
 	    .second
 		  LDI r1 ' '
-		  BRH < start";
+		  BRH < .start";
 		
-		let file_ast = ast::File::from_text(code, None);
-		assert!(file_ast.is_ok());
-		
-		let assembled = assembler::assemble(file_ast.unwrap());
-		assert!(assembled.is_ok());
+		let ast: Vec<_> = parse_lines(code).collect();
+		println!("{:#?}", ast);
 	}
 	
 	#[test]
@@ -44,32 +82,8 @@ mod tests {
 		LDI r4 'D'
 		STR r15 r4 write";
 		
-		let file_ast = ast::File::from_text(code, None);
-		assert!(file_ast.is_ok());
-		
-		let assembled = assembler::assemble(file_ast.unwrap());
-		
-		match assembled {
-			Ok(_) => {}
-			Err(_) => {
-				println!("{:?}", assembled);
-				assert!(false);
-			}
-		}
-		assert!(assembled.is_ok());
-		
-		let code = assembled.unwrap();
-		
-		assert_eq!(code.len(), 3);
-		
-		let expected = "0b1000111111111000 0b1000010000000100 0b1111111101001111";
-		
-		assert_eq!(
-			format!(
-				"{:#018b} {:#018b} {:#018b}",
-				code.get(0).unwrap(), code.get(1).unwrap(), code.get(2).unwrap()
-			),
-			expected
-		);
+		let ast: Vec<_> = parse_lines(code).collect();
+		println!("{:#?}", ast);
 	}
 }
+

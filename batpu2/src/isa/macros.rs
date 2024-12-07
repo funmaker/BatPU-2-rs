@@ -66,6 +66,7 @@ macro_rules! isa {
 		)?
 	) => {
 		mod generated {
+			use thiserror::Error;
 			use std::fmt::{Display, Formatter};
 			use $crate::isa::macros::*;
 			
@@ -103,9 +104,9 @@ macro_rules! isa {
 			}
 			
 			impl TryFrom<&str> for Mnemonic {
-				type Error = String;
+				type Error = UnknownMnemonicError;
 				
-				fn try_from(name: &str) -> Result<Self, String> {
+				fn try_from(name: &str) -> Result<Self, UnknownMnemonicError> {
 					match name {
 						$(
 							stringify!($mnemonic) => Ok(Mnemonic::$mnemonic),
@@ -113,20 +114,20 @@ macro_rules! isa {
 						$($(
 							stringify!($alias) => Ok(Mnemonic::$alias),
 						)*)?
-						name => Err(format!("Unknown mnemonic \"{name}\"")),
+						_ => Err(UnknownMnemonicError),
 					}
 				}
 			}
 			
 			impl TryFrom<u8> for Mnemonic {
-				type Error = String;
+				type Error = UnknownOpcodeError;
 				
-				fn try_from(opcode: u8) -> Result<Self, String> {
+				fn try_from(opcode: u8) -> Result<Self, UnknownOpcodeError> {
 					match opcode {
 						$(
 							$opcode => Ok(Mnemonic::$mnemonic),
 						)*
-						_ => Err(format!("Unknown opcode {opcode}")),
+						_ => Err(UnknownOpcodeError(opcode)),
 					}
 				}
 			}
@@ -137,13 +138,13 @@ macro_rules! isa {
 			}
 			
 			impl Instruction {
-				pub fn new<Ops>(mnemonic: Mnemonic, operands: Ops) -> Result<Self, String>
+				pub fn new<Ops>(mnemonic: Mnemonic, operands: Ops) -> Result<Self, InstructionError>
 				where Ops: IntoIterator,
 				      Ops::IntoIter: Iterator<Item = u16> + ExactSizeIterator {
 					let mut operands = operands.into_iter();
 					
 					if operands.len() != mnemonic.operand_count() {
-						return Err(format!("Invalid number of operands for {mnemonic}, expected {}, got {}", mnemonic.operand_count(), operands.len()));
+						return Err(InstructionError::InvalidArgumentCount { expected: mnemonic.operand_count(), got: operands.len() });
 					}
 					
 					match mnemonic {
@@ -166,9 +167,9 @@ macro_rules! isa {
 				}
 			}
 			
-			impl Into<u16> for Instruction {
-				fn into(self) -> u16 {
-					match self {
+			impl From<Instruction> for u16 {
+				fn from(val: Instruction) -> u16 {
+					match val {
 						$(
 							Instruction::$mnemonic $({$( $operand ),*})? => $opcode << 12 $($(
 								| ($operand as u16) << operand_mask!($operand).trailing_zeros() & operand_mask!($operand)
@@ -191,6 +192,22 @@ macro_rules! isa {
 						_ => unreachable!(),
 					}
 				}
+			}
+			
+			#[derive(Error, Debug)]
+			#[error("Unknown Mnemonic")]
+			pub struct UnknownMnemonicError;
+			
+			#[derive(Error, Debug)]
+			#[error("Unknown Opcode({0})")]
+			pub struct UnknownOpcodeError(u8);
+			
+			#[derive(Error, Debug)]
+			pub enum InstructionError {
+				#[error("Invalid argument count. Expected {expected} arguments (got {got})")]
+				InvalidArgumentCount { expected: usize, got: usize },
+				// #[error("Argument {} is out of range. Expected integer between {min} and {max} (got {got})", argument + 1)]
+				// ArgumentOutOfRange { argument: usize, min: i16, max: i16, got: i16 },
 			}
 		}
 		

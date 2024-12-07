@@ -1,97 +1,135 @@
 use std::collections::HashMap;
 
-use crate::asm::ast::{File, Operand, ResolvedInstruction};
-use crate::vm::io::char::Char;
-use crate::isa;
+use crate::asm::AsmError;
+use crate::asm::ast::Line;
+use crate::isa::{Instruction, MAX_CODE_LEN, Mnemonic};
+type Symbols<'a> = HashMap<&'a str, i16>;
 
-fn default_symbols() -> HashMap<String, u16> {
-	let mut map = HashMap::new();
+pub fn assemble<'lines>(lines: &'lines [Line]) -> impl Iterator<Item=Result<Instruction, AsmError<'lines>>> {
+	let mut symbols = Symbols::new();
 	
-	for (i, port) in [
-		"pixel_x", "pixel_y", "draw_pixel", "clear_pixel",
-		"load_pixel", "buffer_screen", "clear_screen_buffer", "write_char",
-		"buffer_chars", "clear_chars_buffer", "show_number", "clear_number",
-		"signed_mode", "unsigned_mode", "rng", "controller_input"
-	].iter().enumerate() {
-		map.insert(port.to_string(), (240 + i) as u16);
-	}
-	
-	for (i, opcode) in [
-		"nop", "hlt", "add", "sub", "nor", "and", "xor", "rsh",
-		"ldi", "adi", "jmp", "brh", "cal", "ret", "lod", "str"
-	].iter().enumerate() {
-		map.insert(opcode.to_string(), i as u16);
-	}
-	
-	for i in 0..16 {
-		map.insert(format!("r{}", i), i as u16);
-	}
-	
-	for (i, chr) in Char::TABLE.iter().enumerate() {
-		// I cry a little
-		map.insert(format!("'{}'", chr), i as u16);
-		map.insert(format!("\"{}\"", chr), i as u16);
-	}
-	
-	for conditions in [
-		["eq", "ne", "ge", "lt"],
-		["=", "!=", ">=", "<"],
-		["z", "nz", "c", "nc"],
-		["zero", "notzero", "carry", "notcarry"],
-	] {
-		for (i, name) in conditions.into_iter().enumerate() {
-			map.insert(name.to_string(), i as u16);
-		}
-	}
-	
-	map
+	lines.iter()
+	     .map(defining_map(&mut symbols))
+	     .flat_map(|result| result.err().map(Err)) // discard Ok(())
+	     .chain(lines.iter()
+	                 .flat_map(move |line| assemble_line(line, &symbols).transpose()))
 }
 
-pub fn assemble(code: File) -> Result<Vec<u16>, String> {
-	let mut symbols = default_symbols();
+pub fn assemble_line<'line, 's>(line: &'line Line, symbols: &'s Symbols) -> Result<Option<Instruction>, AsmError<'line>> {
+	let mnemonic_token = match line.mnemonic {
+		None => return Ok(None),
+		Some(mnemonic) if &mnemonic == "define" => return Ok(None),
+		Some(mnemonic) => mnemonic,
+	};
+	
+	let mnemonic = Mnemonic::try_from(mnemonic_token.span)
+	                        .map_err(|_| AsmError::UnknownMnemonic { line_number: line.line_number, token: mnemonic_token })?;
+	
+	
+	unimplemented!()
+}
+
+fn defining_map<'s, 'l>(symbols: &'s mut Symbols<'l>) -> impl for<'a> FnMut(&'a Line) -> Result<(), AsmError<'a>> {
 	let mut pc = 0;
 	
-	for line in code.lines.iter() {
-		if let Some(label) = line.label.clone() {
-			symbols.insert(label, pc);
-		}
-		if let Some(instruction) = &line.instruction {
-			if instruction.mnemonic == "define" {
-				if instruction.operands.len() != 2 {
-					return Err(format!("{}Expected 2 arguments for define, got {}", code.error_prefix(line.line_number), instruction.operands.len()));
-				}
-				if let Operand::Number(value) = instruction.operands[1] {
-					if value >= 1024 || value < -128 {
-						return Err(format!("{}Value out of acceptable bounds, got {} (0x{:2x})", code.error_prefix(line.line_number), value, value));
-					}
-					symbols.insert(instruction.operands[0].to_string(), value as u16);
-				}else{
-					return Err(format!("{}Invalid argument for define: {:?}", code.error_prefix(line.line_number), instruction.operands[1]));
-				}
-			} else {
-				pc += 1;
+	move |line: &Line| {
+		if let Some(label) = line.label {
+			if pc as usize >= MAX_CODE_LEN {
+				return Err(AsmError::TooManyInstructions {
+					line_number: line.line_number,
+					token: label,
+				})
 			}
+			
+			symbols.insert(label.span, pc);
 		}
+		
+		if Some("define") == line.mnemonic.as_deref() {
+			let [key, value] = line.args.as_ref()
+			                       .try_into()
+			                       .map_err(|_| AsmError::WrongArgumentsCount {
+				                       line_number: line.line_number,
+				                       expected: 2,
+				                       args: line.args.clone(),
+				                       mnemonic: line.mnemonic.unwrap()
+			                       })?;
+			
+			let value = value.parse()
+			                 .map_err(|source| AsmError::IntParseError {
+				                 line_number: line.line_number,
+				                 token: value,
+				                 source,
+			                 })?;
+			
+			symbols.insert(key.span, value);
+		} else if line.mnemonic.is_some() {
+			pc += 1;
+		}
+		
+		Ok(())
 	}
-	
-	let resolved_instructions =
-		code.lines.into_iter()
-		    .flat_map(|line| line.instruction.map(|i| (line.line_number, i)))
-			.filter(|(_, i)| i.mnemonic != "define")
-		    .map(|(line_number, instruction)| Ok(ResolvedInstruction {
-			    mnemonic: instruction.mnemonic.to_ascii_uppercase(),
-			    operands: instruction.operands.into_iter().map(|operand| match operand {
-				    Operand::Number(val) => { Ok(val as u16) }
-				    Operand::Character(chr) => { Ok(chr.as_u8() as u16) }
-				    Operand::Symbol(name) => { symbols.get(&name).map(|value| Ok(*value)).unwrap_or(Err(format!("{}: Unknown symbol '{}'", line_number, name))) }
-			    }).collect::<Result<Vec<u16>, String>>()?,
-		    })).collect::<Result<Vec<ResolvedInstruction>, String>>()?;
-	
-	let machine_code =
-		resolved_instructions.iter()
-		                     .map(isa::Instruction::try_from)
-		                     .map(|i| i.map(|i| i.as_u16()))
-		                     .collect::<Result<Vec<u16>, String>>()?;
-	
-	Ok(machine_code)
 }
+
+
+fn default_symbols(symbol: &str) -> Option<u16> {
+	Some(match symbol {
+		"pixel_x"             => 240,
+		"pixel_y"             => 241,
+		"draw_pixel"          => 242,
+		"clear_pixel"         => 243,
+		"load_pixel"          => 244,
+		"buffer_screen"       => 245,
+		"clear_screen_buffer" => 246,
+		"write_char"          => 247,
+		"buffer_chars"        => 248,
+		"clear_chars_buffer"  => 249,
+		"show_number"         => 250,
+		"clear_number"        => 251,
+		"signed_mode"         => 252,
+		"unsigned_mode"       => 253,
+		"rng"                 => 254,
+		"controller_input"    => 255,
+		
+		"nop" => 0x0,
+		"hlt" => 0x1,
+		"add" => 0x2,
+		"sub" => 0x3,
+		"nor" => 0x4,
+		"and" => 0x5,
+		"xor" => 0x6,
+		"rsh" => 0x7,
+		"ldi" => 0x8,
+		"adi" => 0x9,
+		"jmp" => 0xA,
+		"brh" => 0xB,
+		"cal" => 0xC,
+		"ret" => 0xD,
+		"lod" => 0xE,
+		"str" => 0xF,
+		
+		"r0"  => 0,
+		"r1"  => 1,
+		"r2"  => 2,
+		"r3"  => 3,
+		"r4"  => 4,
+		"r5"  => 5,
+		"r6"  => 6,
+		"r7"  => 7,
+		"r8"  => 8,
+		"r9"  => 9,
+		"r10" => 10,
+		"r11" => 11,
+		"r12" => 12,
+		"r13" => 13,
+		"r14" => 14,
+		"r15" => 15,
+		
+		"eq" | "="  | "z"  | "zero"     => 0,
+		"ne" | "!=" | "nz" | "notzero"  => 1,
+		"ge" | ">=" | "c"  | "carry"    => 2,
+		"lt" | "<"  | "nc" | "notcarry" => 3,
+		
+		_ => return None,
+	})
+}
+

@@ -1,6 +1,7 @@
-use crate::asm::ast;
-
 mod macros;
+
+pub const MAX_ARGS: usize = 3;
+pub const MAX_CODE_LEN: usize = 1 << 10;
 
 macros::isa! {
 	pub instructions {
@@ -30,14 +31,6 @@ macros::isa! {
 		DEC(a)    => ADI(a, 0xFF),
 		NOT(a, c) => NOR(a, 0, c),
 		NEG(a, c) => SUB(0, a, c),
-	}
-}
-
-impl TryFrom<&ast::ResolvedInstruction> for Instruction {
-	type Error = String;
-	
-	fn try_from(resolved: &ast::ResolvedInstruction) -> Result<Self, String> {
-		Instruction::new(Mnemonic::try_from(resolved.mnemonic.as_str())?, resolved.operands.iter().copied())
 	}
 }
 
@@ -89,28 +82,5 @@ mod tests {
 		assert_eq!(Instruction::RET,                                      Instruction::from(0xD000));
 		assert_eq!(Instruction::LOD{ a: 0x1,     b: 0x2, offset: 0x3   }, Instruction::from(0xE123));
 		assert_eq!(Instruction::STR{ a: 0xF,     b: 0xF, offset: 0xF   }, Instruction::from(0xFFFF));
-	}
-	
-	#[test]
-	fn from_ast() {
-		assert_eq!(Instruction::NOP,                                      Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "NOP".into(), operands: vec![] }).unwrap());
-		assert_eq!(Instruction::HLT,                                      Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "HLT".into(), operands: vec![] }).unwrap());
-		assert_eq!(Instruction::ADD{ a: 0x3,     b: 0x4,      c: 0x5   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "ADD".into(), operands: vec![0x3, 0x4, 0x5] }).unwrap());
-		assert_eq!(Instruction::SUB{ a: 0x9,     b: 0x3,      c: 0x9   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "SUB".into(), operands: vec![0x9, 0x3, 0x9] }).unwrap());
-		assert_eq!(Instruction::NOR{ a: 0xE,     b: 0xE,      c: 0xF   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "NOR".into(), operands: vec![0xE, 0xE, 0xF] }).unwrap());
-		assert_eq!(Instruction::AND{ a: 0x4,     b: 0x0,      c: 0x5   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "AND".into(), operands: vec![0x4, 0x0, 0x5] }).unwrap());
-		assert_eq!(Instruction::XOR{ a: 0x1,     b: 0x2,      c: 0x3   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "XOR".into(), operands: vec![0x1, 0x2, 0x3] }).unwrap());
-		assert_eq!(Instruction::RSH{ a: 0xA,                  c: 0xB   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "RSH".into(), operands: vec![0xA, 0xB] }).unwrap());
-		assert_eq!(Instruction::LDI{ a: 0x9,                imm: 0xFF  }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "LDI".into(), operands: vec![0x9, 0xFF] }).unwrap());
-		assert_eq!(Instruction::ADI{ a: 0x8,                imm: 0x42  }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "ADI".into(), operands: vec![0x8, 0x42] }).unwrap());
-		assert_eq!(Instruction::JMP{                       addr: 0x3FF }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "JMP".into(), operands: vec![0x3FF] }).unwrap());
-		assert_eq!(Instruction::BRH{ cond: Cond::Zero,     addr: 0x222 }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "BRH".into(), operands: vec![0x0, 0x222] }).unwrap());
-		assert_eq!(Instruction::BRH{ cond: Cond::NotZero,  addr: 0x123 }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "BRH".into(), operands: vec![0x1, 0x123] }).unwrap());
-		assert_eq!(Instruction::BRH{ cond: Cond::Carry,    addr: 0x009 }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "BRH".into(), operands: vec![0x2, 0x009] }).unwrap());
-		assert_eq!(Instruction::BRH{ cond: Cond::NotCarry, addr: 0x3FF }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "BRH".into(), operands: vec![0x3, 0x3FF] }).unwrap());
-		assert_eq!(Instruction::CAL{                       addr: 0x137 }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "CAL".into(), operands: vec![0x137] }).unwrap());
-		assert_eq!(Instruction::RET,                                      Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "RET".into(), operands: vec![] }).unwrap());
-		assert_eq!(Instruction::LOD{ a: 0x1,     b: 0x2, offset: 0x3   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "LOD".into(), operands: vec![0x1, 0x2, 0x3] }).unwrap());
-		assert_eq!(Instruction::STR{ a: 0xF,     b: 0xF, offset: 0xF   }, Instruction::try_from(&ast::ResolvedInstruction { mnemonic: "STR".into(), operands: vec![0xF, 0xF, 0xF] }).unwrap());
 	}
 }

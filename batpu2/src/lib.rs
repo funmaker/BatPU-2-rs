@@ -6,8 +6,10 @@
 pub mod vm;
 pub mod asm;
 pub mod isa;
+mod utils;
 
 pub use vm::BatPU2;
+pub use utils::*;
 
 #[cfg(test)]
 mod tests {
