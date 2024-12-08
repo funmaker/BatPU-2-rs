@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use arrayvec::ArrayVec;
+
 use crate::asm::{AsmError, Token};
 use crate::asm::ast::Line;
 use crate::isa::{Instruction, InstructionError, MAX_CODE_LEN, MAX_ARGS, Mnemonic};
@@ -132,7 +133,7 @@ impl<'l, 'c> Iterator for Assembler<'l, 'c> {
 			if let Some(mnemonic_token) = line.mnemonic {
 				let mnemonic = match self.resolve_token(line, mnemonic_token, false).ok()
 				                         .and_then(|opcode| opcode.try_into().ok())
-				                         .and_then(|opcode: u8| Mnemonic::try_from(opcode).ok()) {
+				                         .and_then(|opcode: i16| Mnemonic::try_from(opcode).ok()) {
 					Some(mnemonic) => mnemonic,
 					None => return Some(Err(AsmError::UnknownMnemonic { line_number: line.line_number, token: mnemonic_token })),
 				};

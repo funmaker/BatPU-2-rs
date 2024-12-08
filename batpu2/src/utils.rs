@@ -34,7 +34,7 @@ pub fn into_mc(instructions: &[Instruction]) -> String {
 	let mut output = String::with_capacity(instructions.len() * 17);
 	
 	for instruction in instructions.iter() {
-		output.push_str(&format!("{:b}\n", instruction.as_u16()))
+		output.push_str(&format!("{:b}\n", instruction.as_word()))
 	}
 	
 	output

@@ -63,8 +63,6 @@ mod tests {
 			STR r3 r1 0
 		").unwrap();
 		
-		println!("{:?}", vm);
-		
 		assert_eq!(vm.io.char_display.to_string(), "HELLO ASM ")
 	}
 

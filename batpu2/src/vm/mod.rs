@@ -61,6 +61,18 @@ impl BatPU2<Vec<Instruction>, embedded::EmbeddedIO> {
 	}
 }
 
+impl <T, I> BatPU2<T, I>
+where T: Code<Error=!>,
+      I: RawIO<Error=!> {
+	pub fn step(&mut self) {
+		self.try_step().unwrap()
+	}
+	
+	pub fn step_multiple(&mut self, limit: usize) -> usize {
+		self.try_step_multiple(limit).unwrap()
+	}
+}
+
 impl<C, I> BatPU2<C, I>
 where C: Code,
       I: RawIO {
@@ -93,9 +105,9 @@ where C: Code,
 			Instruction::AND{ a, b, c } => { self.write_register_and_flags(c, self.register(a) & self.register(b), false) }
 			Instruction::XOR{ a, b, c } => { self.write_register_and_flags(c, self.register(a) ^ self.register(b), false) }
 			Instruction::RSH{ a, c } => { self.write_register(c, self.register(a) >> 1) }
-			Instruction::LDI{ a, imm } => { self.write_register(a, imm.cast_unsigned()) }
+			Instruction::LDI{ a, imm } => { self.write_register(a, imm) }
 			Instruction::ADI{ a, imm } => {
-				let (result, overflow) = imm.cast_unsigned().overflowing_add(self.register(a));
+				let (result, overflow) = imm.overflowing_add(self.register(a));
 				self.write_register_and_flags(a, result, overflow);
 			}
 			Instruction::JMP{ addr } => { self.pc = addr }
@@ -188,18 +200,6 @@ where C: Code,
 	fn resolve_offset(&self, reg: u8, offset: i8) -> u8 {
 		self.register(reg)
 			.wrapping_add(offset.cast_unsigned())
-	}
-}
-
-impl <T, I> BatPU2<T, I>
-where T: Code<Error=!>,
-      I: RawIO<Error=!> {
-	pub fn step(&mut self) {
-		self.try_step().unwrap()
-	}
-	
-	pub fn step_multiple(&mut self, limit: usize) -> usize {
-		self.try_step_multiple(limit).unwrap()
 	}
 }
 

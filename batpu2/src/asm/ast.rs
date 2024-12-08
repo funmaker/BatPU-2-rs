@@ -47,8 +47,3 @@ impl Display for Token<'_> {
 		self.span.fmt(f)
 	}
 }
-
-pub struct ResolvedInstruction {
-	pub mnemonic: String,
-	pub operands: ArrayVec<u16, MAX_ARGS>,
-}

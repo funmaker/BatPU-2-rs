@@ -223,7 +223,7 @@ impl CharDisplay {
 }
 
 impl Display for CharDisplay {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		for chr in self.output.iter() {
 			std::fmt::Display::fmt(&chr, f)?;
 		}
