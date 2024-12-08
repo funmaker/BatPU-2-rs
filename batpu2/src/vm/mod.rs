@@ -50,6 +50,17 @@ where C: Code {
 	}
 }
 
+#[cfg(feature = "embedded_io")]
+impl BatPU2<Vec<Instruction>, embedded::EmbeddedIO> {
+	pub fn from_asm(code: &str) -> Result<Self, crate::asm::AsmError> {
+		Ok(Self::new(crate::utils::from_asm(code)?))
+	}
+	
+	pub fn from_mc(code: &str) -> Result<Self, crate::utils::FromMcError> {
+		Ok(Self::new(crate::utils::from_mc(code)?))
+	}
+}
+
 impl<C, I> BatPU2<C, I>
 where C: Code,
       I: RawIO {
@@ -82,9 +93,9 @@ where C: Code,
 			Instruction::AND{ a, b, c } => { self.write_register_and_flags(c, self.register(a) & self.register(b), false) }
 			Instruction::XOR{ a, b, c } => { self.write_register_and_flags(c, self.register(a) ^ self.register(b), false) }
 			Instruction::RSH{ a, c } => { self.write_register(c, self.register(a) >> 1) }
-			Instruction::LDI{ a, imm } => { self.write_register(a, imm) }
+			Instruction::LDI{ a, imm } => { self.write_register(a, imm.cast_unsigned()) }
 			Instruction::ADI{ a, imm } => {
-				let (result, overflow) = imm.overflowing_add(self.register(a));
+				let (result, overflow) = imm.cast_unsigned().overflowing_add(self.register(a));
 				self.write_register_and_flags(a, result, overflow);
 			}
 			Instruction::JMP{ addr } => { self.pc = addr }
@@ -174,11 +185,9 @@ where C: Code,
 		}
 	}
 	
-	fn resolve_offset(&self, reg: u8, offset: u8) -> u8 {
-		match offset {
-			0b0000..0b1000 => self.register(reg) + offset,
-			0b1000.. => self.register(reg).wrapping_sub(16).wrapping_add(offset),
-		}
+	fn resolve_offset(&self, reg: u8, offset: i8) -> u8 {
+		self.register(reg)
+			.wrapping_add(offset.cast_unsigned())
 	}
 }
 

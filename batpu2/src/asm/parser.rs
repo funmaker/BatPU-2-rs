@@ -5,7 +5,7 @@ pub fn parse_lines(code: &str) -> impl Iterator<Item=Result<Line, AsmError>> {
 	code.lines()
 	    .enumerate()
 	    .filter(|(_, line)| !line.trim().is_empty())
-	    .map(|(line_number, line)| parse_line(line_number, line))
+	    .map(|(line_number, line)| parse_line(line_number + 1, line))
 }
 
 pub fn parse_line(line_number: usize, line: &str) -> Result<Line, AsmError> {

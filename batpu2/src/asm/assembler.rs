@@ -1,53 +1,50 @@
 use std::collections::HashMap;
-
-use crate::asm::AsmError;
+use arrayvec::ArrayVec;
+use crate::asm::{AsmError, Token};
 use crate::asm::ast::Line;
-use crate::isa::{Instruction, MAX_CODE_LEN, Mnemonic};
-type Symbols<'a> = HashMap<&'a str, i16>;
+use crate::isa::{Instruction, InstructionError, MAX_CODE_LEN, MAX_ARGS, Mnemonic};
+use crate::vm::io::char::Char;
 
-pub fn assemble<'lines>(lines: &'lines [Line]) -> impl Iterator<Item=Result<Instruction, AsmError<'lines>>> {
-	let mut symbols = Symbols::new();
-	
-	lines.iter()
-	     .map(defining_map(&mut symbols))
-	     .flat_map(|result| result.err().map(Err)) // discard Ok(())
-	     .chain(lines.iter()
-	                 .flat_map(move |line| assemble_line(line, &symbols).transpose()))
+const MAX_ERRORS: usize = 100;
+
+pub fn assemble<'l, 'c>(lines: &'l [Line<'c>]) -> impl 'l + Iterator<Item=Result<Instruction, AsmError<'c>>> {
+	Assembler::new(lines)
 }
 
-pub fn assemble_line<'line, 's>(line: &'line Line, symbols: &'s Symbols) -> Result<Option<Instruction>, AsmError<'line>> {
-	let mnemonic_token = match line.mnemonic {
-		None => return Ok(None),
-		Some(mnemonic) if &mnemonic == "define" => return Ok(None),
-		Some(mnemonic) => mnemonic,
-	};
-	
-	let mnemonic = Mnemonic::try_from(mnemonic_token.span)
-	                        .map_err(|_| AsmError::UnknownMnemonic { line_number: line.line_number, token: mnemonic_token })?;
-	
-	
-	unimplemented!()
+struct Assembler<'l, 'c> {
+	line: usize,
+	lines: &'l [Line<'c>],
+	pc: i16,
+	pc_overflow: bool,
+	errors: usize,
+	symbols: HashMap<&'c str, i16>,
+	symbols_done: bool,
 }
 
-fn defining_map<'s, 'l>(symbols: &'s mut Symbols<'l>) -> impl for<'a> FnMut(&'a Line) -> Result<(), AsmError<'a>> {
-	let mut pc = 0;
+impl<'l, 'c> Assembler<'l, 'c> {
+	fn new(lines: &'l [Line<'c>]) -> Self {
+		Self {
+			line: 0,
+			lines,
+			pc: 0,
+			pc_overflow: false,
+			errors: 0,
+			symbols: HashMap::new(),
+			symbols_done: false,
+		}
+	}
 	
-	move |line: &Line| {
+	fn define_symbols(&mut self, line: &'l Line<'c>) -> Result<(), AsmError<'c>> {
 		if let Some(label) = line.label {
-			if pc as usize >= MAX_CODE_LEN {
-				return Err(AsmError::TooManyInstructions {
-					line_number: line.line_number,
-					token: label,
-				})
-			}
+			self.check_pc_overflow(line.line_number, label)?;
 			
-			symbols.insert(label.span, pc);
+			self.symbols.insert(label.span, self.pc);
 		}
 		
 		if Some("define") == line.mnemonic.as_deref() {
 			let [key, value] = line.args.as_ref()
 			                       .try_into()
-			                       .map_err(|_| AsmError::WrongArgumentsCount {
+			                       .map_err(|_| AsmError::WrongOperandCount {
 				                       line_number: line.line_number,
 				                       expected: 2,
 				                       args: line.args.clone(),
@@ -61,17 +58,126 @@ fn defining_map<'s, 'l>(symbols: &'s mut Symbols<'l>) -> impl for<'a> FnMut(&'a 
 				                 source,
 			                 })?;
 			
-			symbols.insert(key.span, value);
-		} else if line.mnemonic.is_some() {
-			pc += 1;
+			self.symbols.insert(key.span, value);
+		} else if let Some(mnemonic) = line.mnemonic {
+			self.check_pc_overflow(line.line_number, mnemonic)?;
+			
+			self.pc += 1;
 		}
 		
 		Ok(())
 	}
+	
+	fn check_pc_overflow(&mut self, line_number: usize, token: Token<'c>) -> Result<(), AsmError<'c>> {
+		if self.pc as usize >= MAX_CODE_LEN {
+			self.pc_overflow = true;
+			Err(AsmError::TooManyInstructions { line_number, token })
+		} else {
+			Ok(())
+		}
+	}
+	
+	fn resolve_token(&self, line: &Line, token: Token<'c>, literal: bool) -> Result<i16, AsmError<'c>> {
+		if literal {
+			if let Some(char) = match token.as_bytes() {
+				&[b'"' | b'\'', ref inner @ .., b'"' | b'\''] if !inner.is_empty() && inner.trim_ascii().is_empty() => Char::try_from(' ').ok(),
+				&[b'\'', inner, b'\''] |
+				&[b'"', inner, b'"'] => Char::try_from(inner as char).ok(),
+				_ => None,
+			} {
+				return Ok(char.as_u8() as i16);
+			}
+			
+			if let Ok(int) = token.span.parse() {
+				return Ok(int);
+			}
+		}
+		
+		self.symbols
+		    .get(token.span)
+		    .copied()
+		    .or_else(|| default_symbols(token.span))
+		    .ok_or(AsmError::UnknownSymbol {
+			    line_number: line.line_number,
+			    token,
+			    literal,
+		    })
+	}
+}
+
+impl<'l, 'c> Iterator for Assembler<'l, 'c> {
+	type Item = Result<Instruction, AsmError<'c>>;
+	
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.pc_overflow || self.errors > MAX_ERRORS {
+			return None
+		}
+		
+		while !self.symbols_done {
+			if let Some(line) = self.lines.get(self.line) {
+				self.line += 1;
+				if let Err(err) = self.define_symbols(line) {
+					self.errors += 1;
+					return Some(Err(err))
+				}
+			} else {
+				self.symbols_done = true;
+				self.line = 0;
+			}
+		}
+		
+		while let Some(line) = self.lines.get(self.line) {
+			self.line += 1;
+			
+			if let Some(mnemonic_token) = line.mnemonic {
+				let mnemonic = match self.resolve_token(line, mnemonic_token, false).ok()
+				                         .and_then(|opcode| opcode.try_into().ok())
+				                         .and_then(|opcode: u8| Mnemonic::try_from(opcode).ok()) {
+					Some(mnemonic) => mnemonic,
+					None => return Some(Err(AsmError::UnknownMnemonic { line_number: line.line_number, token: mnemonic_token })),
+				};
+				
+				let args = match line.args.iter()
+				                          .map(|&token| self.resolve_token(line, token, true))
+				                          .collect::<Result<ArrayVec<_, MAX_ARGS>, _>>() {
+					Ok(args) => args,
+					Err(err) => return Some(Err(err)),
+				};
+				
+				let instruction = match Instruction::new(mnemonic, args.clone()) {
+					Ok(instruction) => instruction,
+					Err(InstructionError::WrongOperandCount { expected, .. }) => return Some(Err(AsmError::WrongOperandCount {
+						line_number: line.line_number,
+						expected,
+						mnemonic: mnemonic_token,
+						args: line.args.clone(),
+					})),
+					Err(InstructionError::OperandOutOfRange { operand, name, min, max, got }) => return Some(Err(AsmError::OperandOutOfRange {
+						line_number: line.line_number,
+						mnemonic: mnemonic_token,
+						token: line.args[operand],
+						operand, name, min, max, got,
+					})),
+				};
+				
+				return Some(Ok(instruction));
+			}
+		}
+		
+		None
+	}
+	
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		if self.symbols_done {
+			(0, Some(self.lines.len() - self.line))
+		} else {
+			(0, Some(self.lines.len() * 2 - self.line))
+		}
+	}
 }
 
 
-fn default_symbols(symbol: &str) -> Option<u16> {
+fn default_symbols(symbol: &str) -> Option<i16> {
 	Some(match symbol {
 		"pixel_x"             => 240,
 		"pixel_y"             => 241,
@@ -90,22 +196,22 @@ fn default_symbols(symbol: &str) -> Option<u16> {
 		"rng"                 => 254,
 		"controller_input"    => 255,
 		
-		"nop" => 0x0,
-		"hlt" => 0x1,
-		"add" => 0x2,
-		"sub" => 0x3,
-		"nor" => 0x4,
-		"and" => 0x5,
-		"xor" => 0x6,
-		"rsh" => 0x7,
-		"ldi" => 0x8,
-		"adi" => 0x9,
-		"jmp" => 0xA,
-		"brh" => 0xB,
-		"cal" => 0xC,
-		"ret" => 0xD,
-		"lod" => 0xE,
-		"str" => 0xF,
+		"NOP" => 0x0,
+		"HLT" => 0x1,
+		"ADD" => 0x2,
+		"SUB" => 0x3,
+		"NOR" => 0x4,
+		"AND" => 0x5,
+		"XOR" => 0x6,
+		"RSH" => 0x7,
+		"LDI" => 0x8,
+		"ADI" => 0x9,
+		"JMP" => 0xA,
+		"BRH" => 0xB,
+		"CAL" => 0xC,
+		"RET" => 0xD,
+		"LOD" => 0xE,
+		"STR" => 0xF,
 		
 		"r0"  => 0,
 		"r1"  => 1,

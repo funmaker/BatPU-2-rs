@@ -6,17 +6,16 @@
 pub mod vm;
 pub mod asm;
 pub mod isa;
-mod utils;
+pub mod utils;
 
 pub use vm::BatPU2;
-pub use utils::*;
 
 #[cfg(test)]
+#[cfg(feature = "embedded_io")]
 mod tests {
 	use crate::BatPU2;
 	
 	#[test]
-	#[cfg(feature = "embedded_io")]
 	fn it_works() {
 		BatPU2::new([0, 0, 1, 2, 3]);
 		BatPU2::new(&[0, 0, 1, 2, 3]);
@@ -26,7 +25,6 @@ mod tests {
 	}
 	
 	#[test]
-	#[cfg(feature = "embedded_io")]
 	fn hello_world() {
 		let code = [
 			0x8ff9, 0xff00, 0x8ff7, 0x8e08, 0xffe0, 0x8e05, 0xffe0, 0x8e0c, 0xffe0, 0x8e0c, 0xffe0, 0x8e0f, 0xffe0,
@@ -37,9 +35,40 @@ mod tests {
 		assert_eq!(vm.step_multiple(30), 26);
 		assert_eq!(vm.io.char_display.to_string(), "HELLOWORLD");
 	}
+	
+	#[test]
+	fn hello_asm() {
+		let vm = BatPU2::from_asm(r"
+			LDI r2 write_char
+			LDI r3 buffer_chars
+			
+			LDI r1 'H'
+			STR r2 r1 0
+			LDI r1 'E'
+			STR r2 r1 0
+			LDI r1 'L'
+			STR r2 r1 0
+			STR r2 r1 0
+			LDI r1 'O'
+			STR r2 r1 0
+			LDI r1 ' '
+			STR r2 r1 0
+			LDI r1 'A'
+			STR r2 r1 0
+			LDI r1 'S'
+			STR r2 r1 0
+			LDI r1 'M'
+			STR r2 r1 0
+			
+			STR r3 r1 0
+		").unwrap();
+		
+		println!("{:?}", vm);
+		
+		assert_eq!(vm.io.char_display.to_string(), "HELLO ASM ")
+	}
 
 	#[test]
-	#[cfg(feature = "embedded_io")]
 	fn dvd() {
 		let code = [
 			0x8ff9, 0xff00, 0x8ff7, 0x8104, 0xff10, 0x8116, 0xff10, 0x8104, 0xff10, 0x8100, 0xff10, 0x8100, 0xff10,

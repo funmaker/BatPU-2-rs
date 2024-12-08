@@ -1,22 +1,44 @@
 
 macro_rules! operand_type {
-	( a ) => { u8 };
-	( b ) => { u8 };
-	( c ) => { u8 };
-	( imm ) => { u8 };
-	( addr ) => { u16 };
-	( cond ) => { Cond };
-	( offset ) => { u8 };
+	( opcode ) => { u8   };
+	( a      ) => { u8   };
+	( b      ) => { u8   };
+	( c      ) => { u8   };
+	( imm    ) => { i8   };
+	( addr   ) => { u16  };
+	( cond   ) => { Cond };
+	( offset ) => { i8   };
 }
 
 pub(crate) use operand_type;
 
+macro_rules! operand_mask {
+	( opcode ) => { 0b_1111_0000_0000_0000_u16 };
+	( a      ) => { 0b_0000_1111_0000_0000_u16 };
+	( b      ) => { 0b_0000_0000_1111_0000_u16 };
+	( c      ) => { 0b_0000_0000_0000_1111_u16 };
+	( imm    ) => { 0b_0000_0000_1111_1111_u16 };
+	( addr   ) => { 0b_0000_0011_1111_1111_u16 };
+	( cond   ) => { 0b_0000_1100_0000_0000_u16 };
+	( offset ) => { 0b_0000_0000_0000_1111_u16 };
+}
+
+pub(crate) use operand_mask;
+
+macro_rules! operand_signed {
+	( opcode ) => { false };
+	( a      ) => { false };
+	( b      ) => { false };
+	( c      ) => { false };
+	( imm    ) => { true  };
+	( addr   ) => { false };
+	( cond   ) => { false };
+	( offset ) => { true  };
+}
+
+pub(crate) use operand_signed;
+
 macro_rules! operand_from {
-	( a, $val:expr ) => { $val as u8 };
-	( b, $val:expr ) => { $val as u8 };
-	( c, $val:expr ) => { $val as u8 };
-	( imm, $val:expr ) => { $val as u8 };
-	( addr, $val:expr ) => { $val as u16 };
 	( cond, $val:expr ) => {
 		match $val {
 			0b_00 => Cond::Zero,
@@ -26,22 +48,10 @@ macro_rules! operand_from {
 			_ => unreachable!(),
 		}
 	};
-	( offset, $val:expr ) => { $val as u8 };
+	( $operand:tt, $val:expr ) => { $val as operand_type!($operand) };
 }
 
 pub(crate) use operand_from;
-
-macro_rules! operand_mask {
-	( a ) =>      { 0b_0000_1111_0000_0000_u16 };
-	( b ) =>      { 0b_0000_0000_1111_0000_u16 };
-	( c ) =>      { 0b_0000_0000_0000_1111_u16 };
-	( imm ) =>    { 0b_0000_0000_1111_1111_u16 };
-	( addr ) =>   { 0b_0000_0011_1111_1111_u16 };
-	( cond ) =>   { 0b_0000_1100_0000_0000_u16 };
-	( offset ) => { 0b_0000_0000_0000_1111_u16 };
-}
-
-pub(crate) use operand_mask;
 
 macro_rules! count {
     () => { 0usize };
@@ -66,18 +76,19 @@ macro_rules! isa {
 		)?
 	) => {
 		mod generated {
-			use thiserror::Error;
+			#![allow(unused_assignments)]
+			
 			use std::fmt::{Display, Formatter};
 			use $crate::isa::macros::*;
+			use $crate::isa::common::*;
 			
-			#[repr(u8)]
-			#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-			pub enum Cond {
-				Zero     = 0b_00,
-				NotZero  = 0b_01,
-				Carry    = 0b_10,
-				NotCarry = 0b_11,
-			}
+			pub const MAX_ARGS: usize = {
+				let mut max = 0;
+				$($( if count!($($operand)*) > max { max = count!($($operand)*); } )?)*
+				$($( if count!($($alias_op)*) > max { max = count!($($alias_op)*); } )*)?
+				max
+			};
+			pub const MAX_CODE_LEN: usize = 1 << operand_mask!( addr ).count_ones();
 			
 			#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 			pub enum Mnemonic {
@@ -140,22 +151,36 @@ macro_rules! isa {
 			impl Instruction {
 				pub fn new<Ops>(mnemonic: Mnemonic, operands: Ops) -> Result<Self, InstructionError>
 				where Ops: IntoIterator,
-				      Ops::IntoIter: Iterator<Item = u16> + ExactSizeIterator {
+				      Ops::IntoIter: Iterator<Item = i16> + ExactSizeIterator {
 					let mut operands = operands.into_iter();
 					
 					if operands.len() != mnemonic.operand_count() {
-						return Err(InstructionError::InvalidArgumentCount { expected: mnemonic.operand_count(), got: operands.len() });
+						return Err(InstructionError::WrongOperandCount { expected: mnemonic.operand_count(), got: operands.len() });
 					}
 					
 					match mnemonic {
 						$(
-							Mnemonic::$mnemonic => Ok(Instruction::$mnemonic $({$(
-							   $operand: operand_from!($operand, operands.next().unwrap()),
-							)*})?),
+							Mnemonic::$mnemonic => {
+								$(
+									let mut operand = 0;
+									$(
+										let $operand = operands.next().unwrap();
+										check_range($operand, operand_mask!($operand), operand_signed!($operand), operand, stringify!($operand))?;
+										let $operand = operand_from!($operand, $operand);
+										operand += 1;
+									)*
+								)?
+								Ok(Instruction::$mnemonic $({$( $operand ),*})?)
+							},
 						)*
 						$($(
 							Mnemonic::$alias => {
-								$( let $alias_op = operands.next().unwrap(); )*
+								let mut operand = 0;
+								$(
+									let $alias_op = operands.next().unwrap();
+									check_range($alias_op, operand_mask!($alias_op), operand_signed!($alias_op), operand, stringify!($alias_op))?;
+									operand += 1;
+								)*
 								Instruction::new(Mnemonic::$target, [$( $target_op ),*])
 							},
 						)*)?
@@ -171,9 +196,7 @@ macro_rules! isa {
 				fn from(val: Instruction) -> u16 {
 					match val {
 						$(
-							Instruction::$mnemonic $({$( $operand ),*})? => $opcode << 12 $($(
-								| ($operand as u16) << operand_mask!($operand).trailing_zeros() & operand_mask!($operand)
-							)*)?,
+							Instruction::$mnemonic $({$( $operand ),*})? => write_masked($opcode, operand_mask!(opcode)) $($( | write_masked($operand as i16, operand_mask!($operand)) )*)?,
 						)*
 					}
 				}
@@ -181,33 +204,17 @@ macro_rules! isa {
 			
 			impl From<u16> for Instruction {
 				fn from(value: u16) -> Self {
-					let mnemonic = Mnemonic::try_from((value >> 12) as u8).unwrap();
+					let mnemonic = Mnemonic::try_from(read_masked(value, operand_mask!(opcode), operand_signed!(opcode)) as operand_type!(opcode)).unwrap();
 					
 					match mnemonic {
 						$(
 							Mnemonic::$mnemonic => Instruction::$mnemonic $({$(
-							   $operand: operand_from!($operand, (value & operand_mask!($operand)) >> operand_mask!($operand).trailing_zeros()),
+							   $operand: operand_from!($operand, read_masked(value, operand_mask!($operand), operand_signed!($operand))),
 							)*})?,
 						)*
 						_ => unreachable!(),
 					}
 				}
-			}
-			
-			#[derive(Error, Debug)]
-			#[error("Unknown Mnemonic")]
-			pub struct UnknownMnemonicError;
-			
-			#[derive(Error, Debug)]
-			#[error("Unknown Opcode({0})")]
-			pub struct UnknownOpcodeError(u8);
-			
-			#[derive(Error, Debug)]
-			pub enum InstructionError {
-				#[error("Invalid argument count. Expected {expected} arguments (got {got})")]
-				InvalidArgumentCount { expected: usize, got: usize },
-				// #[error("Argument {} is out of range. Expected integer between {min} and {max} (got {got})", argument + 1)]
-				// ArgumentOutOfRange { argument: usize, min: i16, max: i16, got: i16 },
 			}
 		}
 		
