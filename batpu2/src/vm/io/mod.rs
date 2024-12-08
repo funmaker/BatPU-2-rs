@@ -2,7 +2,6 @@ use std::error::Error as StdError;
 
 #[cfg(feature = "embedded_io")]
 pub mod embedded;
-pub mod char;
 
 pub trait RawIO {
 	type Error: StdError + 'static;

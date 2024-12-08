@@ -2,6 +2,7 @@
 #![feature(integer_sign_cast)]
 #![feature(debug_closure_helpers)]
 #![feature(never_type)]
+#![cfg_attr(feature = "doc_cfg", feature(doc_auto_cfg))]
 
 pub mod vm;
 pub mod asm;

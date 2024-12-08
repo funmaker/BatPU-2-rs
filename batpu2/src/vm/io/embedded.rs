@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 
-use super::char::Char;
+use crate::utils::Char;
 use super::IO;
 
 #[derive(Clone)]
@@ -20,7 +20,7 @@ impl EmbeddedIO {
 			screen: Screen::default(),
 			char_display: CharDisplay::default(),
 			number_display: NumberDisplay::default(),
-			rng: SmallRng::from_entropy(),
+			rng: SmallRng::from_seed([0; 32]),
 			controller: Controller::default(),
 		}
 	}

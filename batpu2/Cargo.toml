@@ -6,9 +6,12 @@ edition = "2021"
 [features]
 default = ["embedded_io"]
 embedded_io = ["dep:rand"]
+doc_cfg = []
 
 [dependencies]
 arrayvec = "0.7.6"
-num_enum = "0.7.3"
-rand = { version = "0.8.5", features = ["small_rng"], optional = true }
+rand = { version = "0.8.5", features = ["small_rng"], optional = true, default-features = false }
 thiserror = "2.0.4"
+
+[package.metadata.docs.rs]
+all-features = true

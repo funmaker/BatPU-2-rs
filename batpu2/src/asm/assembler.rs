@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use arrayvec::ArrayVec;
 
-use crate::asm::{AsmError, Token};
-use crate::asm::ast::Line;
+use crate::asm::{AsmError, Token, Line};
 use crate::isa::{Instruction, InstructionError, MAX_CODE_LEN, MAX_ARGS, Mnemonic};
-use crate::vm::io::char::Char;
+use crate::utils::Char;
 
 const MAX_ERRORS: usize = 100;
 

@@ -2,14 +2,14 @@ use std::fmt::{Debug, Formatter};
 use std::error::Error as StdError;
 use thiserror::Error;
 
-pub mod io;
-pub mod code;
+mod io;
+mod code;
 
 use crate::isa::{Cond, Instruction};
-use code::Code;
-use io::RawIO;
+pub use code::Code;
+pub use io::{RawIO, IO};
 #[cfg(feature = "embedded_io")]
-use io::embedded;
+pub use io::embedded;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct Flags {
@@ -50,12 +50,15 @@ where C: Code {
 	}
 }
 
-#[cfg(feature = "embedded_io")]
 impl BatPU2<Vec<Instruction>, embedded::EmbeddedIO> {
+	/// Creates a BatPU2 Instance using program in asm
+	#[cfg(feature = "embedded_io")]
 	pub fn from_asm(code: &str) -> Result<Self, crate::asm::AsmError> {
 		Ok(Self::new(crate::utils::from_asm(code)?))
 	}
 	
+	/// Creates a BatPU2 Instance using program in .mc format
+	#[cfg(feature = "embedded_io")]
 	pub fn from_mc(code: &str) -> Result<Self, crate::utils::FromMcError> {
 		Ok(Self::new(crate::utils::from_mc(code)?))
 	}
