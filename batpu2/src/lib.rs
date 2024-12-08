@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-#![feature(integer_sign_cast)]
 #![feature(debug_closure_helpers)]
 #![feature(never_type)]
 #![cfg_attr(feature = "doc_cfg", feature(doc_auto_cfg))]
@@ -39,30 +37,34 @@ mod tests {
 	
 	#[test]
 	fn hello_asm() {
-		let vm = BatPU2::from_asm(r"
+		let mut vm = BatPU2::from_asm(r"
 			LDI r2 write_char
 			LDI r3 buffer_chars
 			
 			LDI r1 'H'
-			STR r2 r1 0
+			STR r2 r1
 			LDI r1 'E'
-			STR r2 r1 0
+			STR r2 r1
 			LDI r1 'L'
-			STR r2 r1 0
-			STR r2 r1 0
+			STR r2 r1
+			STR r2 r1
 			LDI r1 'O'
-			STR r2 r1 0
+			STR r2 r1
 			LDI r1 ' '
-			STR r2 r1 0
+			STR r2 r1
 			LDI r1 'A'
-			STR r2 r1 0
+			STR r2 r1
 			LDI r1 'S'
-			STR r2 r1 0
+			STR r2 r1
 			LDI r1 'M'
-			STR r2 r1 0
+			STR r2 r1
 			
 			STR r3 r1 0
 		").unwrap();
+		
+		vm.step_multiple(1000);
+		
+		println!("{:#?}", vm);
 		
 		assert_eq!(vm.io.char_display.to_string(), "HELLO ASM ")
 	}

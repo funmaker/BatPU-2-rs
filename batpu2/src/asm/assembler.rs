@@ -46,7 +46,7 @@ impl<'l, 'c> Assembler<'l, 'c> {
 			                       .try_into()
 			                       .map_err(|_| AsmError::WrongOperandCount {
 				                       line_number: line.line_number,
-				                       expected: 2,
+				                       expected: 2..=2,
 				                       args: line.args.clone(),
 				                       mnemonic: line.mnemonic.unwrap()
 			                       })?;

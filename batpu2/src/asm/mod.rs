@@ -1,3 +1,4 @@
+use std::ops::RangeInclusive;
 use std::num::ParseIntError;
 use arrayvec::ArrayVec;
 use thiserror::Error;
@@ -11,6 +12,7 @@ pub use parser::*;
 pub use assembler::*;
 
 use crate::isa::{MAX_ARGS, MAX_CODE_LEN};
+use crate::utils::PrettyRange;
 
 #[derive(Error, Debug)]
 #[non_exhaustive]
@@ -20,10 +22,10 @@ pub enum AsmError<'a> {
 		line_number: usize,
 		token: Token<'a>,
 	},
-	#[error("{line_number}:{}: Instruction `{mnemonic}` expects {expected} operands (got {})", mnemonic.char_number, args.len())]
+	#[error("{line_number}:{}: Instruction `{mnemonic}` expects {} operands (got {})", mnemonic.char_number, PrettyRange(expected), args.len())]
 	WrongOperandCount {
 		line_number: usize,
-		expected: usize,
+		expected: RangeInclusive<usize>,
 		mnemonic: Token<'a>,
 		args: ArrayVec<Token<'a>, MAX_ARGS>,
 	},

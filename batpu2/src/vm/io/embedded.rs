@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
-use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
 
 use crate::utils::Char;
 use super::IO;
@@ -24,20 +24,21 @@ impl EmbeddedIO {
 			controller: Controller::default(),
 		}
 	}
+	
+	pub fn set_seed(&mut self, seed: <SmallRng as SeedableRng>::Seed) {
+		self.rng = SmallRng::from_seed(seed);
+	}
 }
 
 impl Debug for EmbeddedIO {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("EmbeddedIO")
-			.field("char_display", &self.char_display)
-			.field("number_display", &self.number_display)
-			.field("screen", &self.screen)
-			.field_with("controller", |f| f.write_str(&format!("{:?}", self.controller)))
-			.field_with("rng (next value)", |f| {
-				let next_value: u8 = self.rng.clone().gen();
-				f.write_str(&format!("{} / 0x{:2X}", next_value, next_value))
-			})
-			.finish()
+		 .field("char_display", &self.char_display)
+		 .field("number_display", &self.number_display)
+		 .field("screen", &self.screen)
+		 .field_with("controller", |f| write!(f, "{:?}", self.controller))
+		 .field_with("rng (next value)", |f| write!(f, "{0:} / 0x{0:2X}", self.rng.clone().gen::<u8>()))
+		 .finish()
 	}
 }
 
@@ -187,10 +188,10 @@ impl Screen {
 impl Debug for Screen {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Screen")
-			.field_with("coords", |f| f.write_str(&format!("{:?}", vec![self.x, self.y])))
-			.field_with("buffer", |f| f.write_str(&format!("{:?}", self.buffer)))
-			.field_with("output", |f| f.write_str(&format!("{:?}", self.output)))
-			.finish()
+		 .field_with("coords", |f| write!(f, "{:?}", vec![self.x, self.y]))
+		 .field_with("buffer", |f| write!(f, "{:?}", self.buffer))
+		 .field_with("output", |f| write!(f, "{:?}", self.output))
+		 .finish()
 	}
 }
 
@@ -236,9 +237,9 @@ impl Debug for CharDisplay {
 		let buffer_str: String = self.buffer.iter().map(ToString::to_string).collect();
 		let output_str: String = self.output.iter().map(ToString::to_string).collect();
 		f.debug_struct("CharDisplay")
-			.field("buffer", &buffer_str)
-			.field("output", &output_str)
-			.finish()
+		 .field("buffer", &buffer_str)
+		 .field("output", &output_str)
+		 .finish()
 	}
 }
 
@@ -259,7 +260,7 @@ impl NumberDisplay {
 	}
 	
 	pub fn set_signed(&mut self, value: i8) {
-		self.set(value.cast_unsigned());
+		self.set(value as u8);
 		self.signed = true;
 	}
 	
@@ -274,7 +275,7 @@ impl Display for NumberDisplay {
 			None => { Ok(()) }
 			Some(value) => {
 				if self.signed {
-					let signed = value.cast_signed();
+					let signed = *value as i8;
 					Display::fmt(&signed, f)
 				}else{
 					Display::fmt(&value, f)

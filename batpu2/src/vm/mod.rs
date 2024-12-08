@@ -22,7 +22,7 @@ type DefaultIO = embedded::EmbeddedIO;
 #[cfg(not(feature = "embedded_io"))]
 type DefaultIO = ();
 
-pub struct BatPU2<C: ?Sized, I = DefaultIO> {
+pub struct BatPU2<C: ?Sized = Vec<Instruction>, I = DefaultIO> {
 	pub flags: Flags,
 	pub io: I,
 	pub pc: u16,
@@ -202,7 +202,7 @@ where C: Code,
 	
 	fn resolve_offset(&self, reg: u8, offset: i8) -> u8 {
 		self.register(reg)
-			.wrapping_add(offset.cast_unsigned())
+			.wrapping_add_signed(offset)
 	}
 }
 
@@ -214,10 +214,10 @@ where T: Code,
 		 .field("halted", &self.halted)
 		 .field("rom size", &self.code.len())
 		 .field("pc", &self.pc)
-		 .field_with("flags", |f| f.write_str(&format!("{:?}", self.flags)))
-		 .field_with("registers", |f| f.write_str(&format!("{:?}", self.registers)))
-		 .field_with("memory", |f| f.write_str(&format!("{:?}", self.memory)))
-		 .field_with("call_stack", |f| f.write_str(&format!("{:?}", self.call_stack)))
+		 .field_with("flags",      |f| write!(f, "{:?}", self.flags))
+		 .field_with("registers",  |f| write!(f, "{:?}", self.registers))
+		 .field_with("memory",     |f| write!(f, "{:?}", self.memory))
+		 .field_with("call_stack", |f| write!(f, "{:?}", self.call_stack))
 		 .field("io", &self.io)
 		 .finish()
 	}

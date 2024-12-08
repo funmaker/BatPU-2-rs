@@ -27,13 +27,13 @@ macro_rules! isa {
 		}
 		$vis:vis instructions {
 			$(
-				$mnemonic:ident $( ( $( $operand:tt ),* $(,)? ) )? = $opcode:expr
+				$mnemonic:ident $( ( $( $operand:tt $( = $operand_def:expr )? ),* $(,)? ) )? = $opcode:expr
 			),* $(,)?
 		}
 		$(
 			$_:vis aliases {
 				$(
-					$alias:ident ( $( $alias_op:tt ),* $(,)? ) => $target:ident ( $( $target_op:expr ),* $(,)? )
+					$alias:ident ( $( $alias_op:tt $( = $alias_op_def:expr )? ),* $(,)? ) => $target:ident ( $( $target_op:expr ),* $(,)? )
 				),* $(,)?
 			}
 		)?
@@ -42,6 +42,7 @@ macro_rules! isa {
 			#![allow(unused_assignments)]
 			
 			use std::fmt::{Display, Formatter};
+			use std::ops::RangeInclusive;
 			use $crate::isa::macros::*;
 			use $crate::isa::common::*;
 			
@@ -76,10 +77,10 @@ macro_rules! isa {
 			}
 			
 			impl Mnemonic {
-				const fn operand_count(self) -> usize {
+				const fn operand_count(self) -> RangeInclusive<usize> {
 					match self {
-						$( Self::$mnemonic => count!($($( $operand )*)?), )*
-						$($( Self::$alias => count!($( $alias_op )*), )*)?
+						$( Self::$mnemonic => RangeInclusive::new(count!($($( $operand )*)?) - (count!($($($( $operand_def )?)*)?)), count!($($( $operand )*)?)), )*
+						$($( Self::$alias => RangeInclusive::new(count!($( $alias_op )*) - (count!($($( $alias_op_def )?)*)), count!($( $alias_op )*), ), )*)?
 					}
 				}
 			}
@@ -133,7 +134,7 @@ macro_rules! isa {
 				      Ops::IntoIter: Iterator<Item = Operand> + ExactSizeIterator {
 					let mut operands = operands.into_iter();
 					
-					if operands.len() != mnemonic.operand_count() {
+					if !mnemonic.operand_count().contains(&operands.len()) {
 						return Err(InstructionError::WrongOperandCount { expected: mnemonic.operand_count(), got: operands.len() });
 					}
 					
@@ -143,7 +144,7 @@ macro_rules! isa {
 								$(
 									let mut operand = 0;
 									$(
-										let $operand = operands.next().unwrap();
+										let $operand = operands.next() $( .or(Some($operand_def)) )? .unwrap();
 										check_range($operand, $operand::MASK, $operand::KIND, operand, $operand::NAME)?;
 										let $operand = $operand.try_into().unwrap();
 										operand += 1;
@@ -156,7 +157,7 @@ macro_rules! isa {
 							Mnemonic::$alias => {
 								let mut operand = 0;
 								$(
-									let $alias_op = operands.next().unwrap();
+									let $alias_op = operands.next() $( .or(Some($alias_op_def)) )? .unwrap();
 									check_range($alias_op, $alias_op::MASK, $alias_op::KIND, operand, $alias_op::NAME)?;
 									operand += 1;
 								)*

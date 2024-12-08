@@ -6,16 +6,14 @@ use std::fs;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::process::exit;
-use std::time::{Duration, Instant};
-use anyhow::{bail, Context, ensure, Result};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use anyhow::{Context, Result};
+use batpu2::BatPU2;
+use batpu2::vm::embedded::Controller;
 
 mod arguments;
 
 use arguments::{Arguments, Command};
-use batpu2::BatPU2;
-use batpu2::vm::embedded::{EmbeddedIO, Controller};
-
-type VM<'a> = BatPU2<&'a [u16], EmbeddedIO>;
 
 fn main() -> Result<()> {
 	let args: Vec<String> = std::env::args().collect();
@@ -32,9 +30,7 @@ fn main() -> Result<()> {
 		match &arguments.command {
 			Command::Help => arguments.print_usage(program, false),
 			Command::Run(path) => {
-				let file = fs::read_to_string(path)
-					.with_context(|| format!("Failed to open: \"{path}\""))?;
-				let code = parse_mc(&file)?;
+				let code = fs::read_to_string(path).with_context(|| format!("Failed to open: \"{path}\""))?;
 				
 				run(&code, &arguments)?;
 			}
@@ -46,24 +42,6 @@ fn main() -> Result<()> {
 	}
 	
 	result
-}
-
-fn parse_line(pos: usize, line: &str) -> Result<u16> {
-	if let Some(char) = line.chars().find(|&char| char != '0' && char != '1') {
-		bail!("Unexpected character '{char}' at line {}", pos + 1);
-	}
-	
-	ensure!(line.len() == 16, "Unexpected length {} of line {}, expected 16", line.len(), pos + 1);
-	
-	u16::from_str_radix(line, 2)
-		.with_context(|| format!("Failed to parse line {}", pos + 1))
-}
-
-fn parse_mc(code: &str) -> Result<Vec<u16>> {
-	code.lines()
-	    .enumerate()
-	    .map(|(pos, line)| parse_line(pos, line))
-	    .collect()
 }
 
 struct Watch<T, R, W> {
@@ -98,14 +76,24 @@ where W: Fn(&T) -> R,
 	}
 }
 
-fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
+fn run(code: &str, arguments: &Arguments) -> Result<()> {
 	use crossterm::terminal::ClearType;
 	use crossterm::style::Color;
 	use crossterm::event::{ Event, KeyEvent, KeyCode, KeyEventKind, KeyModifiers };
 	use crossterm::*;
 	use std::io;
 	
-	let mut vm = BatPU2::new(code);
+	let mut vm = BatPU2::from_mc(code)?;
+	
+	let mut seed = [0; 32];
+	seed[0..16].copy_from_slice(
+		&SystemTime::now().duration_since(UNIX_EPOCH)
+		                  .unwrap()
+		                  .as_nanos()
+		                  .to_ne_bytes()
+	);
+	
+	vm.io.set_seed(seed);
 	
 	terminal::enable_raw_mode()?;
 	
@@ -120,10 +108,10 @@ fn run(code: &[u16], arguments: &Arguments) -> Result<()> {
 	let mut last_sec = Instant::now();
 	let mut steps = 0;
 	
-	let mut screen = Watch::new(|vm: &VM| vm.io.screen.output);
-	let mut char_display = Watch::new(|vm: &VM| vm.io.char_display.output);
-	let mut number_display = Watch::new(|vm: &VM| vm.io.number_display);
-	let mut buttons = Watch::new(|vm: &VM| vm.io.controller.state);
+	let mut screen =         Watch::new(|vm: &BatPU2| vm.io.screen.output);
+	let mut char_display =   Watch::new(|vm: &BatPU2| vm.io.char_display.output);
+	let mut number_display = Watch::new(|vm: &BatPU2| vm.io.number_display);
+	let mut buttons =        Watch::new(|vm: &BatPU2| vm.io.controller.state);
 	
 	let mut btn_times = std::collections::HashMap::<u8, Instant>::new();
 	

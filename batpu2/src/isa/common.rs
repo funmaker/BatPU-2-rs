@@ -1,5 +1,7 @@
+use std::ops::RangeInclusive;
 use thiserror::Error;
 
+use crate::utils::PrettyRange;
 use super::{Operand, Word};
 
 #[repr(u8)]
@@ -71,7 +73,7 @@ pub(crate) fn write_masked(mut value: Operand, mask: Word) -> Word {
 		value = umax + value;
 	}
 	
-	(value.cast_unsigned() << mask.trailing_zeros()) & mask
+	((value as Word) << mask.trailing_zeros()) & mask
 }
 
 pub(crate) fn read_masked(value: Word, mask: Word, kind: OperandKind) -> Operand {
@@ -86,7 +88,7 @@ pub(crate) fn read_masked(value: Word, mask: Word, kind: OperandKind) -> Operand
 		if value >= imax { (imax as Operand * -2) + value as Operand }
 		else { value as Operand }
 	} else {
-		value.cast_signed()
+		value as Operand
 	}
 }
 
@@ -100,8 +102,8 @@ pub struct UnknownOpcodeError(pub Operand);
 
 #[derive(Error, Debug)]
 pub enum InstructionError {
-	#[error("Invalid argument count. Expected {expected} operands (got {got})")]
-	WrongOperandCount { expected: usize, got: usize },
+	#[error("Invalid argument count. Expected {} operands (got {got})", PrettyRange(expected))]
+	WrongOperandCount { expected: RangeInclusive<usize>, got: usize },
 	#[error("{}. operand {name} is out of range. value out of range (min {min}, max {}, got {got})", operand + 1, max - 1)]
 	OperandOutOfRange { operand: usize, name: &'static str, min: Operand, max: Operand, got: Operand },
 }

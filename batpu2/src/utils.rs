@@ -1,4 +1,5 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{self, Write, Display, Formatter};
+use std::ops::RangeInclusive;
 use std::num::ParseIntError;
 use thiserror::Error;
 
@@ -35,11 +36,29 @@ pub fn into_mc(instructions: &[Instruction]) -> String {
 	let mut output = String::with_capacity(instructions.len() * 17);
 	
 	for instruction in instructions.iter() {
-		output.push_str(&format!("{:b}\n", instruction.as_word()))
+		write!(output, "{:b}\n", instruction.as_word()).unwrap();
 	}
 	
 	output
 }
+
+pub(crate) struct PrettyRange<'a>(pub &'a RangeInclusive<usize>);
+
+impl Display for PrettyRange<'_> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		if *self.0.start() == 0 && *self.0.end() == 0 {
+			write!(f, "no")
+		} else if self.0.start() == self.0.end() {
+			write!(f, "{}", *self.0.start())
+		} else {
+			write!(f, "from {} to {}", *self.0.start(), *self.0.end())
+		}
+	}
+}
+
+#[derive(Error, Debug)]
+#[error("Invalid character \"{char}\"")]
+pub struct InvalidCharacter { char: char }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 pub struct Char(u8);
@@ -67,23 +86,21 @@ impl Char {
 }
 
 impl TryFrom<char> for Char {
-	type Error = String; // todo
+	type Error = InvalidCharacter; // todo
 	
 	fn try_from(value: char) -> Result<Self, Self::Error> {
-		if value == ' ' { Ok(Char::SPACE) }
-		else if value == '.' { Ok(Char::new(27)) }
-		else if value == '!' { Ok(Char::new(28)) }
-		else if value == '?' { Ok(Char::new(29)) }
-		else if value.is_ascii_alphabetic() {
-			Ok(Char::new(value.to_ascii_uppercase() as u8 - 'A' as u8 + 1))
-		}else{
-			Err(format!("invalid char: {}", value))
+		for (id, char) in Self::TABLE.into_iter().enumerate() {
+			if value == char {
+				return Ok(Char(id as u8))
+			}
 		}
+		
+		Err(InvalidCharacter { char: value })
 	}
 }
 
 impl Display for Char {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		if let Some(c) = self.to_char() {
 			c.fmt(f)
 		} else {
