@@ -286,13 +286,10 @@ impl Display for NumberDisplay {
 }
 impl Debug for NumberDisplay {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let signed_text = if self.signed { "signed" } else { "unsigned" };
 		match &self.value {
-			None => {
-				write!(f, "None ({})", if self.signed { "signed" } else { "unsigned" })
-			}
-			Some(value) => {
-				write!(f, "{} ({} 0x{:2X})", &self, if self.signed { "signed" } else { "unsigned" }, value)
-			}
+			None        => write!(f, "None ({signed_text})"),
+			Some(value) => write!(f, "{value} ({signed_text} 0x{value:2X})"),
 		}
 	}
 }

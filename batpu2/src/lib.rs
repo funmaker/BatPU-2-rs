@@ -62,9 +62,7 @@ mod tests {
 			STR r3 r1 0
 		").unwrap();
 		
-		vm.step_multiple(1000);
-		
-		println!("{:#?}", vm);
+		vm.step_multiple(20);
 		
 		assert_eq!(vm.io.char_display.to_string(), "HELLO ASM ")
 	}
