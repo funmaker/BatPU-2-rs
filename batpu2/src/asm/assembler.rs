@@ -82,7 +82,7 @@ impl<'l, 'c> Assembler<'l, 'c> {
 			if let Some(char) = match token.as_bytes() {
 				&[b'"' | b'\'', ref inner @ .., b'"' | b'\''] if !inner.is_empty() && inner.trim_ascii().is_empty() => Char::try_from(' ').ok(),
 				&[b'\'', inner, b'\''] |
-				&[b'"', inner, b'"'] => Char::try_from(inner as char).ok(),
+				&[b'"', inner, b'"'] => Char::try_from((inner as char).to_ascii_uppercase()).ok(),
 				_ => None,
 			} {
 				return Ok(char.as_u8() as i16);
@@ -130,6 +130,10 @@ impl<'l, 'c> Iterator for Assembler<'l, 'c> {
 			self.line += 1;
 			
 			if let Some(mnemonic_token) = line.mnemonic {
+				if &mnemonic_token == "define" {
+					continue;
+				}
+				
 				let mnemonic = match self.resolve_token(line, mnemonic_token, false).ok()
 				                         .and_then(|opcode| opcode.try_into().ok())
 				                         .and_then(|opcode: i16| Mnemonic::try_from(opcode).ok()) {

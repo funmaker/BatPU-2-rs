@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::process::exit;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
-use batpu2::BatPU2;
+use batpu2::{asm, BatPU2, utils};
 use batpu2::vm::embedded::Controller;
 
 mod arguments;
@@ -29,10 +29,19 @@ fn main() -> Result<()> {
 	let result: Result<_> = try {
 		match &arguments.command {
 			Command::Help => arguments.print_usage(program, false),
-			Command::Run(path) => {
-				let code = fs::read_to_string(path).with_context(|| format!("Failed to open: \"{path}\""))?;
+			Command::Run{ filename } => {
+				let code = fs::read_to_string(filename).with_context(|| format!("Failed to open: \"{filename}\""))?;
 				
 				run(&code, &arguments)?;
+			}
+			Command::Asm{ input, output } => {
+				let code = fs::read_to_string(input).with_context(|| format!("Failed to open: \"{input}\""))?;
+				
+				let code = asm::parse_lines(&code).collect::<Result<Vec<_>, _>>().unwrap();
+				let code = asm::assemble(&code).collect::<Result<Vec<_>, _>>().unwrap();
+				let code = utils::into_mc(&code);
+				
+				fs::write(output, code).with_context(|| format!("Failed to create: \"{output}\""))?;
 			}
 		}
 	};

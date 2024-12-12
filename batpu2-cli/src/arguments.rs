@@ -5,7 +5,8 @@ use getopts::Options;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Command {
 	Help,
-	Run(String),
+	Run{ filename: String },
+	Asm{ input: String, output: String },
 }
 
 pub struct Arguments {
@@ -43,7 +44,12 @@ impl Arguments {
 				Some("run") => {
 					let [_, filename] = expect_free_args(&matches.free, ["", "filename"])?;
 					
-					Command::Run(filename.into())
+					Command::Run{ filename: filename.clone() }
+				}
+				Some("asm") => {
+					let [_, input, output] = expect_free_args(&matches.free, ["", "input", "output"])?;
+					
+					Command::Asm{ input: input.clone(), output: output.clone() }
 				}
 				Some(cmd) => bail!("Unknown command: {cmd}"),
 			}
@@ -57,7 +63,8 @@ impl Arguments {
 Usage: {program} <Command> [options]
 
 Commands:
-    run <filename>      execute binary file\
+    run <filename>        execute a file on the emulator
+    asm <input> <output>  compile .asm file to .mc\
 ");
 		let usage = self.opts.usage(&brief);
 		
