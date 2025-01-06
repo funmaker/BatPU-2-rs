@@ -1,7 +1,7 @@
 use crate::asm::AsmError;
 use crate::asm::ast::{Line, Token};
 
-pub fn parse_lines(code: &str) -> impl Iterator<Item=Result<Line, AsmError>> {
+pub fn parse_lines(code: &str) -> impl Iterator<Item=Result<Line, AsmError>> + '_ {
 	code.lines()
 	    .enumerate()
 	    .filter(|(_, line)| !line.trim().is_empty())
@@ -42,11 +42,11 @@ fn tokenize(mut line: &str) -> impl Iterator<Item=Token> {
 			None
 		} else if let Some((token, rest)) = split_whitespace_quote(line) {
 			line = rest;
-			Some(Token::new(original.len() - line.len() - token.len(), token))
+			Some(Token::new(original.len() - line.len() - token.len() + 1, token))
 		} else {
-			let (token, rest) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
+			let (token, rest) = line.split_at(line.find(char::is_whitespace).unwrap_or(line.len()));
 			line = rest;
-			Some(Token::new(original.len() - line.len() - token.len(), token))
+			Some(Token::new(original.len() - line.len() - token.len() + 1, token))
 		}
 	})
 }

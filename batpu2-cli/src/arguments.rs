@@ -6,7 +6,7 @@ use getopts::Options;
 pub enum Command {
 	Help,
 	Run{ filename: String },
-	Asm{ input: String, output: String },
+	Asm{ input_path: String, output_path: String },
 }
 
 pub struct Arguments {
@@ -49,7 +49,7 @@ impl Arguments {
 				Some("asm") => {
 					let [_, input, output] = expect_free_args(&matches.free, ["", "input", "output"])?;
 					
-					Command::Asm{ input: input.clone(), output: output.clone() }
+					Command::Asm{ input_path: input.clone(), output_path: output.clone() }
 				}
 				Some(cmd) => bail!("Unknown command: {cmd}"),
 			}

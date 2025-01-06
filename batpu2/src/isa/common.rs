@@ -39,7 +39,7 @@ pub enum OperandKind {
 	Any,
 }
 
-pub(crate) fn check_range(value: Operand, mask: Word, kind: OperandKind, operand: usize, name: &'static str) -> Result<(), InstructionError> {
+pub(crate) fn check_range(value: Operand, mask: Word, kind: OperandKind, operand: usize, name: &'static str) -> Result<Operand, InstructionError> {
 	debug_assert!(mask != 0);
 	debug_assert!(mask != !0);
 	
@@ -60,7 +60,11 @@ pub(crate) fn check_range(value: Operand, mask: Word, kind: OperandKind, operand
 		});
 	}
 	
-	Ok(())
+	if kind == OperandKind::Any && value < 0 {
+		Ok(value + umax)
+	} else {
+		Ok(value)
+	}
 }
 
 pub(crate) fn write_masked(mut value: Operand, mask: Word) -> Word {

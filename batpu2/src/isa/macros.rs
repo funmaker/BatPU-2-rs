@@ -145,7 +145,7 @@ macro_rules! isa {
 									let mut operand = 0;
 									$(
 										let $operand = operands.next() $( .or(Some($operand_def)) )? .unwrap();
-										check_range($operand, $operand::MASK, $operand::KIND, operand, $operand::NAME)?;
+										let $operand = check_range($operand, $operand::MASK, $operand::KIND, operand, $operand::NAME)?;
 										let $operand = $operand.try_into().unwrap();
 										operand += 1;
 									)*

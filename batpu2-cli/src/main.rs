@@ -2,6 +2,7 @@
 #![feature(array_chunks)]
 #![feature(hash_extract_if)]
 
+use std::cell::Cell;
 use std::fs;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -12,10 +13,16 @@ use batpu2::{asm, BatPU2, utils};
 use batpu2::vm::embedded::Controller;
 
 mod arguments;
+mod collect_ex;
 
 use arguments::{Arguments, Command};
+use collect_ex::CollectAsm;
 
-fn main() -> Result<()> {
+thread_local! {
+	static ALT_SCR: Cell<bool> = Cell::new(false);
+}
+
+fn main() {
 	let args: Vec<String> = std::env::args().collect();
 	let program = &args[0];
 	let mut arguments = Arguments::new();
@@ -34,23 +41,23 @@ fn main() -> Result<()> {
 				
 				run(&code, &arguments)?;
 			}
-			Command::Asm{ input, output } => {
-				let code = fs::read_to_string(input).with_context(|| format!("Failed to open: \"{input}\""))?;
+			Command::Asm{ input_path, output_path } => {
+				let input = fs::read_to_string(input_path).with_context(|| format!("Failed to open: \"{input_path}\""))?;
 				
-				let code = asm::parse_lines(&code).collect::<Result<Vec<_>, _>>().unwrap();
-				let code = asm::assemble(&code).collect::<Result<Vec<_>, _>>().unwrap();
+				let code = asm::parse_lines(&input).collect_asm(input_path, &input)?;
+				let code = asm::assemble(&code).collect_asm(input_path, &input)?;
 				let code = utils::into_mc(&code);
 				
-				fs::write(output, code).with_context(|| format!("Failed to create: \"{output}\""))?;
+				fs::write(output_path, code).with_context(|| format!("Failed to create: \"{output_path}\""))?;
 			}
 		}
 	};
 	
-	if result.is_err() {
+	if let Err(err) = result {
 		recover_term();
+		
+		eprintln!("{err:?}");
 	}
-	
-	result
 }
 
 struct Watch<T, R, W> {
@@ -113,6 +120,7 @@ fn run(code: &str, arguments: &Arguments) -> Result<()> {
 	         style::SetBackgroundColor(Color::Rgb { r: 0x2d, g: 0x17, b: 0x10 }),
 	         style::SetForegroundColor(Color::Rgb { r: 0xf0, g: 0xd4, b: 0xac }),
 	         cursor::MoveTo(5, 5))?;
+	ALT_SCR.set(true);
 	
 	let mut last_sec = Instant::now();
 	let mut steps = 0;
@@ -302,6 +310,7 @@ fn run(code: &str, arguments: &Arguments) -> Result<()> {
 	execute!(io::stdout(),
 	         cursor::Show,
 	         terminal::LeaveAlternateScreen)?;
+	ALT_SCR.set(false);
 	
 	Ok(())
 }
@@ -317,10 +326,13 @@ fn recover_term() {
 	
 	print_err!(execute!(
 		std::io::stdout(),
-		event::PopKeyboardEnhancementFlags,
 		cursor::Show,
-		terminal::LeaveAlternateScreen,
 	));
+	
+	if ALT_SCR.get() {
+		print_err!(execute!(std::io::stdout(), terminal::LeaveAlternateScreen));
+		ALT_SCR.set(false);
+	}
 	
 	if terminal::is_raw_mode_enabled().unwrap_or(true) {
 		print_err!(terminal::disable_raw_mode());

@@ -17,19 +17,19 @@ use crate::utils::PrettyRange;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum AsmError<'a> {
-	#[error("{line_number}:{}: Unexpected token `{token}`, too many operands (max {MAX_ARGS})", token.char_number)]
+	#[error("Unexpected token `{token}`, too many operands (max {MAX_ARGS})")]
 	TooManyTokens {
 		line_number: usize,
 		token: Token<'a>,
 	},
-	#[error("{line_number}:{}: Instruction `{mnemonic}` expects {} operands (got {})", mnemonic.char_number, PrettyRange(expected), args.len())]
+	#[error("Instruction `{mnemonic}` expects {} operands (got {})", PrettyRange(expected), args.len())]
 	WrongOperandCount {
 		line_number: usize,
 		expected: RangeInclusive<usize>,
 		mnemonic: Token<'a>,
 		args: ArrayVec<Token<'a>, MAX_ARGS>,
 	},
-	#[error("{line_number}:{}: {mnemonic}'s {}. operand {name} value out of range (min {min}, max {}, got {got})", token.char_number, operand + 1, max - 1)]
+	#[error("{mnemonic}'s {}. operand {name} value out of range (min {min}, max {}, got {got})", operand + 1, max - 1)]
 	OperandOutOfRange {
 		line_number: usize,
 		operand: usize,
@@ -40,28 +40,58 @@ pub enum AsmError<'a> {
 		got: i16,
 		token: Token<'a>,
 	},
-	#[error("{line_number}:{}: Unexpected token `{token}`, too many instructions (max {MAX_CODE_LEN}).", token.char_number)]
+	#[error("Unexpected token `{token}`, too many instructions (max {MAX_CODE_LEN}).")]
 	TooManyInstructions {
 		line_number: usize,
 		token: Token<'a>,
 	},
-	#[error("{line_number}:{}: Unexpected token `{token}`, expected a mnemonic or `define`", token.char_number)]
+	#[error("Unexpected token `{token}`, expected a mnemonic or `define`")]
 	UnknownMnemonic {
 		line_number: usize,
 		token: Token<'a>,
 	},
-	#[error("{line_number}:{}: Unexpected token `{token}`, expected {}", token.char_number, if *literal { "a known symbol or an integer literal" } else { "a known symbol" })]
+	#[error("Unexpected token `{token}`, expected {}", if *literal { "a known symbol or an integer literal" } else { "a known symbol" })]
 	UnknownSymbol {
 		line_number: usize,
 		token: Token<'a>,
 		literal: bool,
 	},
-	#[error("{line_number}:{}: Unexpected token `{token}`, expected an integer literal", token.char_number)]
+	#[error("Unexpected token `{token}`, expected an integer literal")]
 	IntParseError {
 		line_number: usize,
 		token: Token<'a>,
 		#[source] source: ParseIntError,
 	},
+}
+
+impl AsmError<'_> {
+	pub fn line_num(&self) -> usize {
+		match self {
+			&AsmError::TooManyTokens { line_number, .. } => line_number,
+			&AsmError::WrongOperandCount { line_number, .. } => line_number,
+			&AsmError::OperandOutOfRange { line_number, .. } => line_number,
+			&AsmError::TooManyInstructions { line_number, .. } => line_number,
+			&AsmError::UnknownMnemonic { line_number, .. } => line_number,
+			&AsmError::UnknownSymbol { line_number, .. } => line_number,
+			&AsmError::IntParseError { line_number, .. } => line_number,
+		}
+	}
+	
+	pub fn col_num(&self) -> usize {
+		self.token().char_number
+	}
+	
+	pub fn token(&self) -> Token {
+		match self {
+			&AsmError::TooManyTokens { token, .. } => token,
+			&AsmError::WrongOperandCount { mnemonic, .. } => mnemonic,
+			&AsmError::OperandOutOfRange { token, .. } => token,
+			&AsmError::TooManyInstructions { token, .. } => token,
+			&AsmError::UnknownMnemonic { token, .. } => token,
+			&AsmError::UnknownSymbol { token, .. } => token,
+			&AsmError::IntParseError { token, .. } => token,
+		}
+	}
 }
 
 #[cfg(test)]
