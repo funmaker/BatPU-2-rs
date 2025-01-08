@@ -112,7 +112,7 @@ fn parse_python_numeric(token: &str) -> Option<i16> {
 		&[b'0', b'x' | b'X', ref rest @ ..] => (rest, 16),
 		&[b'0', b'o' | b'O', ref rest @ ..] => (rest, 8),
 		&[b'0', b'b' | b'B', ref rest @ ..] => (rest, 2),
-		&[b'1'..b'9', ..] => (num_literal.as_bytes(), 10),
+		&[b'1'..=b'9', ..] => (num_literal.as_bytes(), 10),
 		&[b'0',          ..] => (num_literal.as_bytes(), 1),
 		_ => return None,
 	};
