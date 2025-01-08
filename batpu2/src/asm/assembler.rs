@@ -180,11 +180,9 @@ impl<'l, 'c> Iterator for Assembler<'l, 'c> {
 					continue;
 				}
 				
-				let mnemonic = match self.resolve_token(line, mnemonic_token, false).ok()
-				                         .and_then(|opcode| opcode.try_into().ok())
-				                         .and_then(|opcode: i16| Mnemonic::try_from(opcode).ok()) {
-					Some(mnemonic) => mnemonic,
-					None => return Some(Err(AsmError::UnknownMnemonic { line_number: line.line_number, token: mnemonic_token })),
+				let mnemonic = match Mnemonic::try_from(&*mnemonic_token) {
+					Ok(mnemonic) => mnemonic,
+					_ => return Some(Err(AsmError::UnknownMnemonic { line_number: line.line_number, token: mnemonic_token })),
 				};
 				
 				let args = match line.args.iter()

@@ -98,15 +98,16 @@ macro_rules! isa {
 				type Error = UnknownMnemonicError;
 				
 				fn try_from(name: &str) -> Result<Self, UnknownMnemonicError> {
-					match name {
-						$(
-							stringify!($mnemonic) => Ok(Mnemonic::$mnemonic),
-						)*
-						$($(
-							stringify!($alias) => Ok(Mnemonic::$alias),
-						)*)?
-						_ => Err(UnknownMnemonicError),
-					}
+					$(
+						if stringify!($mnemonic).eq_ignore_ascii_case(name) {
+							Ok(Mnemonic::$mnemonic)
+						} else
+					)* $($(
+						if stringify!($alias).eq_ignore_ascii_case(name) {
+							Ok(Mnemonic::$alias)
+						} else
+					)*)?
+					{ Err(UnknownMnemonicError) }
 				}
 			}
 			
