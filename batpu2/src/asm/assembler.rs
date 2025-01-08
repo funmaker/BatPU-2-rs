@@ -88,7 +88,7 @@ impl<'l, 'c> Assembler<'l, 'c> {
 				return Ok(char.as_u8() as i16);
 			}
 			
-			if let Ok(int) = token.span.parse() {
+			if let Some(int) = parse_python_numeric(token.span) {
 				return Ok(int);
 			}
 		}
@@ -102,6 +102,52 @@ impl<'l, 'c> Assembler<'l, 'c> {
 			    token,
 			    literal,
 		    })
+	}
+}
+
+fn parse_python_numeric(token: &str) -> Option<i16> {
+	let (is_negative, num_literal) = token.strip_prefix('-').map_or((false, token), |bytes| (true, bytes));
+	
+	let (num_literal, radix) = match num_literal.as_bytes() {
+		&[b'0', b'x' | b'X', ref rest @ ..] => (rest, 16),
+		&[b'0', b'o' | b'O', ref rest @ ..] => (rest, 8),
+		&[b'0', b'b' | b'B', ref rest @ ..] => (rest, 2),
+		&[b'1'..b'9', ..] => (num_literal.as_bytes(), 10),
+		&[b'0',          ..] => (num_literal.as_bytes(), 1),
+		_ => return None,
+	};
+	
+	let mut result: i32 = 0;
+	let mut found_digit = false;
+	
+	for digit in num_literal {
+		let digit = match digit {
+			b'0'..=b'9' => digit - b'0',
+			b'a'..=b'f' => digit - b'a' + 10,
+			b'A'..=b'F' => digit - b'A' + 10,
+			b'_' => continue,
+			_ => return None,
+		};
+		
+		if digit >= radix { return None; }
+		
+		result = result.checked_mul(radix as i32)?
+		               .checked_add(digit as i32)?;
+		found_digit = true;
+	}
+	
+	if !found_digit {
+		return None;
+	}
+	
+	if is_negative {
+		result = result.checked_neg()?;
+	}
+	
+	if result < i16::MIN as i32 || result > i16::MAX as i32 {
+		None
+	} else {
+		Some(result as i16)
 	}
 }
 
