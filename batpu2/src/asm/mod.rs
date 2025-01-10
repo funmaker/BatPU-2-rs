@@ -10,7 +10,6 @@ mod assembler;
 pub use ast::*;
 pub use parser::*;
 pub use assembler::*;
-
 use crate::isa::{MAX_ARGS, MAX_CODE_LEN};
 use crate::utils::PrettyRange;
 
@@ -90,6 +89,18 @@ impl AsmError<'_> {
 			&AsmError::UnknownMnemonic { token, .. } => token,
 			&AsmError::UnknownSymbol { token, .. } => token,
 			&AsmError::IntParseError { token, .. } => token,
+		}
+	}
+	
+	pub fn tokens(&self) -> ArrayVec<Token, { MAX_ARGS + 1 }> {
+		match self {
+			&AsmError::TooManyTokens { token, .. } => Some(token).into_iter().collect(),
+			&AsmError::WrongOperandCount { mnemonic, ref args, .. } => Some(mnemonic).into_iter().chain(args.iter().cloned()).collect(),
+			&AsmError::OperandOutOfRange { token, .. } => Some(token).into_iter().collect(),
+			&AsmError::TooManyInstructions { token, .. } => Some(token).into_iter().collect(),
+			&AsmError::UnknownMnemonic { token, .. } => Some(token).into_iter().collect(),
+			&AsmError::UnknownSymbol { token, .. } => Some(token).into_iter().collect(),
+			&AsmError::IntParseError { token, .. } => Some(token).into_iter().collect(),
 		}
 	}
 }

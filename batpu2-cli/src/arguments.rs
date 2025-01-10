@@ -6,7 +6,7 @@ use getopts::Options;
 pub enum Command {
 	Help,
 	Run{ filename: String },
-	Asm{ input_path: String, output_path: String },
+	Asm{ input: String, output: String },
 }
 
 pub struct Arguments {
@@ -14,6 +14,7 @@ pub struct Arguments {
 	pub command: Command,
 	pub help: bool,
 	pub tickrate: f32,
+	pub pressTime: f32,
 }
 
 impl Arguments {
@@ -22,12 +23,14 @@ impl Arguments {
 		
 		opts.optflag("h", "help", "print this message");
 		opts.optopt("s", "speed", "number of instructions executed per second", "100.0");
+		opts.optopt("", "press-time", "how long should buttons be pressed before an automatic release in seconds. You can use '0' for precise timing\n(requires kitty protocol support)", "0.5");
 		
 		Self {
 			opts,
 			command: Command::Help,
 			help: false,
 			tickrate: 100.0,
+			pressTime: 0.5,
 		}
 	}
 	
@@ -36,6 +39,7 @@ impl Arguments {
 		
 		self.help = matches.opt_get("help")?.unwrap_or(self.help);
 		self.tickrate = matches.opt_get("speed")?.unwrap_or(self.tickrate);
+		self.pressTime = matches.opt_get("press-time")?.unwrap_or(self.pressTime);
 		
 		if !self.help {
 			self.command = match matches.free.first().map(Deref::deref) {
@@ -49,7 +53,7 @@ impl Arguments {
 				Some("asm") => {
 					let [_, input, output] = expect_free_args(&matches.free, ["", "input", "output"])?;
 					
-					Command::Asm{ input_path: input.clone(), output_path: output.clone() }
+					Command::Asm{ input: input.clone(), output: output.clone() }
 				}
 				Some(cmd) => bail!("Unknown command: {cmd}"),
 			}
