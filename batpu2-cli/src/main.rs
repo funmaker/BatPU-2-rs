@@ -23,8 +23,8 @@ fn main() {
 	
 	let result = match &arguments.command {
 		Command::Help => Ok(arguments.print_usage(program, false)),
-		Command::Run{ filename } => run::cmd(filename, &arguments),
 		Command::Asm{ input, output } => asm::cmd(input, output),
+		Command::Run{ filename } => run::cmd(filename, &arguments),
 	};
 	
 	if let Err(err) = result {

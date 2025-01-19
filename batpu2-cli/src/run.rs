@@ -1,8 +1,8 @@
-use std::cell::Cell;
 use std::fs;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::io;
 use crossterm::*;
 use crossterm::terminal::ClearType;
 use crossterm::style::Color;
@@ -28,17 +28,38 @@ pub fn cmd(filename: &str, arguments: &Arguments) -> Result<()> {
 		asm::assemble(&input, filename)?
 	};
 	
-	if let Err(err) = run(code, arguments) {
-		recover_term();
-		return Err(err);
+	terminal::enable_raw_mode()?;
+	
+	execute!(io::stdout(),
+	         terminal::EnterAlternateScreen,
+	         terminal::Clear(ClearType::Purge),
+	         cursor::Hide,
+	         style::SetBackgroundColor(Color::Rgb { r: 0x2d, g: 0x17, b: 0x10 }),
+	         style::SetForegroundColor(Color::Rgb { r: 0xf0, g: 0xd4, b: 0xac }),
+	         cursor::MoveTo(5, 5))?;
+	
+	if arguments.kitty {
+		execute!(io::stdout(), event::PushKeyboardEnhancementFlags(
+			event::KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES |
+			event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES |
+			event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES,
+		))?;
 	}
 	
-	Ok(())
-}
-
-thread_local! {
-	static ALT_SCR: Cell<bool> = Cell::new(false);
-	static ENH_FLAGS: Cell<bool> = Cell::new(false);
+	let result = run(code, arguments);
+	
+	execute!(io::stdout(),
+	         style::ResetColor,
+	         cursor::Show,
+	         terminal::LeaveAlternateScreen)?;
+	
+	if arguments.kitty {
+		execute!(io::stdout(), event::PopKeyboardEnhancementFlags)?;
+	}
+	
+	terminal::disable_raw_mode()?;
+	
+	result
 }
 
 struct Watch<T, R, W> {
@@ -74,8 +95,6 @@ where W: Fn(&T) -> R,
 }
 
 fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
-	use std::io;
-	
 	let mut vm = BatPU2::new(code);
 	
 	let mut seed = [0; 32];
@@ -88,24 +107,10 @@ fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
 	
 	vm.io.set_seed(seed);
 	
-	terminal::enable_raw_mode()?;
-	
-	execute!(io::stdout(),
-	         terminal::EnterAlternateScreen,
-	         terminal::Clear(ClearType::Purge),
-	         cursor::Hide,
-	         style::SetBackgroundColor(Color::Rgb { r: 0x2d, g: 0x17, b: 0x10 }),
-	         style::SetForegroundColor(Color::Rgb { r: 0xf0, g: 0xd4, b: 0xac }),
-	         cursor::MoveTo(5, 5))?;
-	ALT_SCR.set(true);
-	
-	if arguments.pressTime <= 0.0 {
-		execute!(io::stdout(), event::PushKeyboardEnhancementFlags(
-	        event::KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES |
-	        event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES |
-	        event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES,
-	    ));
-		ENH_FLAGS.set(true);
+	if arguments.kitty {
+		vm.io.controller.set_clear_mask(Controller::B_NONE);
+	} else {
+		vm.io.controller.set_clear_mask(Controller::B_ALL);
 	}
 	
 	let mut last_sec = Instant::now();
@@ -116,8 +121,6 @@ fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
 	let mut number_display = Watch::new(|vm: &BatPU2| vm.io.number_display);
 	let mut buttons =        Watch::new(|vm: &BatPU2| vm.io.controller.state);
 	
-	let mut btn_times = std::collections::HashMap::<u8, Instant>::new();
-	
 	macro_rules! binds {
 		($event: expr, $vm: expr; $( $code: pat => $bit: expr ),* $(,)?) => {
 			match $event {
@@ -126,13 +129,12 @@ fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
 						code: $code,
 						kind: KeyEventKind::Press, ..
 					}) => {
-						btn_times.insert($bit, Instant::now());
 						$vm.io.controller.set_button($bit)
 					},
 					Event::Key(KeyEvent {
 						code: $code,
 						kind: KeyEventKind::Release, ..
-					}) if arguments.pressTime <= 0.0 => {
+					}) if arguments.kitty => {
 						$vm.io.controller.clear_button($bit)
 					},
 				)*
@@ -165,8 +167,8 @@ fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
 						KeyCode::Down => Controller::B_DOWN,
 						KeyCode::Right => Controller::B_RIGHT,
 						KeyCode::Up => Controller::B_UP,
-						KeyCode::Char('z') => Controller::B_B,
-						KeyCode::Char('x') => Controller::B_A,
+						KeyCode::Char('x') => Controller::B_B,
+						KeyCode::Char('z') => Controller::B_A,
 						KeyCode::Esc => Controller::B_SELECT,
 						KeyCode::Enter => Controller::B_START,
 						KeyCode::Char('a') => Controller::B_LEFT,
@@ -180,10 +182,6 @@ fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
 					)
 				},
 			}
-		}
-		
-		for (bit, _) in btn_times.extract_if(|_, time| arguments.pressTime > 0.0 && time.elapsed().as_secs_f32() > arguments.pressTime) {
-			vm.io.controller.clear_button(bit);
 		}
 		
 		let steps_target = (last_sec.elapsed().as_secs_f32() * arguments.tickrate) as usize;
@@ -293,39 +291,6 @@ fn run(code: Vec<isa::Instruction>, arguments: &Arguments) -> Result<()> {
 		std::thread::sleep(Duration::from_secs_f32(0.01));
 	}
 	
-	execute!(io::stdout(),
-	         cursor::Show,
-	         terminal::LeaveAlternateScreen)?;
-	ALT_SCR.set(false);
-	
 	Ok(())
 }
 
-fn recover_term() {
-	use crossterm::*;
-	
-	macro_rules! print_err {
-	    ($e: expr) => {
-		    if let Err(err) = $e { eprintln!("{err}") }
-	    };
-	}
-	
-	if ALT_SCR.get() {
-		print_err!(execute!(std::io::stdout(), terminal::LeaveAlternateScreen));
-		ALT_SCR.set(false);
-	}
-	
-	print_err!(execute!(
-		std::io::stdout(),
-		cursor::Show,
-	));
-	
-	if ENH_FLAGS.get() {
-		print_err!(execute!(std::io::stdout(), event::PopKeyboardEnhancementFlags));
-		ENH_FLAGS.set(false);
-	}
-	
-	if terminal::is_raw_mode_enabled().unwrap_or(true) {
-		print_err!(terminal::disable_raw_mode());
-	}
-}

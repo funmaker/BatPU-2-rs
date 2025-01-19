@@ -123,7 +123,7 @@ impl IO for EmbeddedIO {
 	}
 	
 	fn get_controller(&mut self) -> Result<u8, Self::Error> {
-		Ok(self.controller.state)
+		Ok(self.controller.read_and_clear())
 	}
 }
 
@@ -294,9 +294,19 @@ impl Debug for NumberDisplay {
 	}
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Controller {
 	pub state: u8,
+	clear_mask: u8,
+}
+
+impl Default for Controller {
+	fn default() -> Self {
+		Self {
+			state: 0,
+			clear_mask: Controller::B_A | Controller::B_B | Controller::B_SELECT | Controller::B_START,
+		}
+	}
 }
 
 impl Controller {
@@ -308,6 +318,8 @@ impl Controller {
 	pub const B_A: u8 = 0x20;
 	pub const B_SELECT: u8 = 0x40;
 	pub const B_START: u8 = 0x80;
+	pub const B_NONE: u8 = 0x00;
+	pub const B_ALL: u8 = 0xFF;
 	pub const BUTTON_NAMES: [&'static str; 8] = [ "LEFT", "DOWN", "RIGHT", "UP", "B", "A", "SELECT", "START" ];
 	
 	pub fn get_button(&self, button: u8) -> bool {
@@ -320,6 +332,20 @@ impl Controller {
 	
 	pub fn clear_button(&mut self, button: u8) {
 		self.state &= !button;
+	}
+	
+	pub fn read_and_clear(&mut self) -> u8 {
+		let state = self.state;
+		self.state &= !self.clear_mask;
+		state
+	}
+	
+	pub fn clear_mask(&self) -> u8 {
+		self.clear_mask
+	}
+	
+	pub fn set_clear_mask(&mut self, mask: u8) {
+		self.clear_mask = mask;
 	}
 }
 
