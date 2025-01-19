@@ -1,3 +1,10 @@
+//! # batpu2-rs
+//! batpu2-rs provides an assembler and a virtual machine based on [mattbatwings](https://github.com/mattbatwings)'s [BatPU-2](https://github.com/mattbatwings/BatPU-2).
+//!
+//! ### Features
+//! All features are enabled by default.
+//! - `embedded_io`: Provides an example IO implementation [`EmbeddedIO`](vm::embedded::EmbeddedIO) which depends on [rand].
+
 #![feature(debug_closure_helpers)]
 #![feature(never_type)]
 #![cfg_attr(feature = "doc_cfg", feature(doc_auto_cfg))]
